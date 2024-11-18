@@ -1,9 +1,12 @@
-import { ScrollView,Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView } from 'react-native'
+import {  Image, ScrollView,Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView } from 'react-native'
 import React, { useState } from 'react'
 import { auth } from '../firebaseConfig'
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
 import { router, useRouter} from 'expo-router';
 import { signOut } from "firebase/auth";
+import { NavigationContainer } from '@react-navigation/native';
+import { useFonts } from 'expo-font';
+import { Poppins_400Regular, Poppins_700Bold } from '@expo-google-fonts/poppins';
 
 const index = () => {
   const [email, setEmail] = useState('');
@@ -30,18 +33,24 @@ const index = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <NavigationContainer>
+      <SafeAreaView style={styles.container}>
+        <Image
+          source={require('../assets/images/introspect2.png')} // Path to the image
+          style={styles.logo} // Apply styles to the image
+        />
         <Text style={styles.title}>Login</Text>
-        <TextInput style={styles.textInput} placeholder="email" value={email} onChangeText={setEmail} />
-        <TextInput style={styles.textInput} placeholder="password" value={password} onChangeText={setPassword} secureTextEntry />
+        <TextInput style={styles.textInput} placeholder="email" value={email} onChangeText={setEmail} placeholderTextColor="#85878a" />
+        <TextInput style={styles.textInput} placeholder="password" value={password} onChangeText={setPassword} placeholderTextColor="#85878a" secureTextEntry />
         <TouchableOpacity style={styles.button} onPress={signIn}>
           <Text style={styles.text}>Login</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.button} onPress={signUp}>
           <Text style={styles.text}>Make Account</Text>
         </TouchableOpacity>
-    </SafeAreaView>
-  )
+      </SafeAreaView>
+    </NavigationContainer>
+  );
 }
 
 export default index
@@ -56,8 +65,15 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28, // A bit larger for a more striking appearance
     fontWeight: '800', // Extra bold for emphasis
-    marginBottom: 40, // Increased space for a more airy, open feel
-    color: '#1A237E', // A deep indigo for a sophisticated, modern look
+    marginBottom: 30, // Increased space for a more airy, open feel
+    color: '#ffc4c4', // Soft pink color for the title
+    fontFamily: 'Poppins_700Bold',
+  },
+  logo: {
+    width: 300,  // Set width of the logo
+    height: 300, // Set height of the logo
+    marginBottom: -50, // Add margin to create space from the title
+    marginTop: -150,
   },
   textInput: {
     height: 50, // Standard height for elegance and simplicity
@@ -69,7 +85,7 @@ const styles = StyleSheet.create({
     marginVertical: 15,
     paddingHorizontal: 25, // Generous padding for ease of text entry
     fontSize: 16, // Comfortable reading size
-    color: '#3C4858', // A dark gray for readability with a hint of warmth
+    color: '#00000', // A dark gray for readability with a hint of warmth
     shadowColor: '#9E9E9E', // A medium gray shadow for depth
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -79,12 +95,12 @@ const styles = StyleSheet.create({
   button: {
     width: '90%',
     marginVertical: 15,
-    backgroundColor: '#5C6BC0', // A lighter indigo to complement the title color
+    backgroundColor: '#84ccec', // Darker purple for buttons
     padding: 20,
     borderRadius: 15, // Matching rounded corners for consistency
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#5C6BC0', // Shadow color to match the button for a cohesive look
+    shadowColor: '#84ccec', // Shadow color to match the button for a cohesive look
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 5,
@@ -96,3 +112,4 @@ const styles = StyleSheet.create({
     fontWeight: '600', // Semi-bold for a balanced weight
   }
 });
+

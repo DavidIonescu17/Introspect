@@ -50,7 +50,7 @@ export default function TabTwoScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <Text style={styles.mainTitle}>Todo List</Text>
+        <Text style={styles.mainTitle}>To Do List</Text>
         <View style={styles.inputContainer}>
           <TextInput
             placeholder="New Task"
@@ -95,8 +95,8 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 10, // Adjust spacing as needed
-    color: '#333', // Choose a color that fits your app theme
+    marginBottom: 20, // Adjust spacing as needed
+    color: '#ffc4c4', // Choose a color that fits your app theme
   },
   inputContainer: {
     flexDirection: 'row',
@@ -117,8 +117,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFA726', // Use a distinct color for the add button
-    shadowColor: '#FFA726',
+    backgroundColor: '#ffc4c4', // Use a distinct color for the add button
+    shadowColor: '#ffc4c4',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 5,
@@ -141,8 +141,8 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#5C6BC0',
-    shadowColor: '#5C6BC0',
+    backgroundColor: '#84ccec',
+    shadowColor: '#84ccec',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 5,
