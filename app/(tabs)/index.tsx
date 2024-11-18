@@ -1,23 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, TouchableOpacity, Text, View, Modal, TextInput, Button, ScrollView } from 'react-native';
 import { auth } from '../../firebaseConfig';
 import { getAuth } from 'firebase/auth';
 import { router } from 'expo-router';
-
-// Function to generate the days of the month based on the month and year
-const generateCalendar = (month, year) => {
-  const daysInMonth = new Date(year, month + 1, 0).getDate(); // Get the number of days in the month
-  const firstDayOfMonth = new Date(year, month, 1).getDay(); // Get the starting day of the month (0 = Sunday, 6 = Saturday)
-
-  const days = [];
-  for (let i = 0; i < firstDayOfMonth; i++) {
-    days.push(null); // Empty slot before the first day
-  }
-  for (let i = 1; i <= daysInMonth; i++) {
-    days.push(i); // Add the actual days
-  }
-  return days;
-};
+import { Calendar } from 'react-native-calendars';
+import Colors from '@/constants/Colors';
+import Toast from 'react-native-toast-message';
 
 export default function TabOneScreen() {
   getAuth().onAuthStateChanged((user) => {
@@ -28,24 +16,24 @@ export default function TabOneScreen() {
   const [events, setEvents] = useState({});
   const [newEvent, setNewEvent] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [calendarDays, setCalendarDays] = useState([]);
   const [moodModalVisible, setMoodModalVisible] = useState(false);
   const [mood, setMood] = useState(null);
 
-  useEffect(() => {
-    const month = currentDate.getMonth();
-    const year = currentDate.getFullYear();
-    const days = generateCalendar(month, year);
-    setCalendarDays(days);
-  }, [currentDate]);
-
   const handleDayPress = (day) => {
-    if (day) {
-      setSelectedDay(day);
-      setModalVisible(true);
-      setMoodModalVisible(true);  // Show mood prompt when a day is selected
+    //you cannot modify something thats in the future
+    console.log(new Date());
+    console.log(new Date(day.dateString));
+    if (new Date(day.dateString) > new Date()){
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'You cannot modify future dates',
+      });
+      return;
     }
+    setSelectedDay(day.dateString);
+    setModalVisible(true);
+    setMoodModalVisible(true); // Show mood modal when selecting a day
   };
 
   const handleAddEvent = () => {
@@ -60,20 +48,9 @@ export default function TabOneScreen() {
   };
 
   const handleMoodChange = (emoji) => {
-    setMood(emoji);  // Store the selected emoji for mood
-    setMoodModalVisible(false);  // Close the mood modal
+    setMood(emoji); // Store the selected emoji for mood
+    setMoodModalVisible(false); // Close the mood modal
   };
-
-  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-
-  const monthName = monthNames[currentDate.getMonth()];
-  const year = currentDate.getFullYear();
-
-  const today = currentDate.getDate(); // Get today's date
 
   return (
     <View style={styles.container}>
@@ -82,42 +59,34 @@ export default function TabOneScreen() {
         <Text style={styles.text}>Sign Out</Text>
       </TouchableOpacity>
 
-      <Text style={styles.monthYear}>{`${monthName} ${year}`}</Text>
-
-      <ScrollView style={styles.calendar}>
-        <View style={styles.header}>
-          {daysOfWeek.map((day, index) => (
-            <Text key={index} style={styles.headerText}>{day}</Text>
-          ))}
-        </View>
-        <View style={styles.grid}>
-          {calendarDays.map((day, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.day,
-                day === null && styles.emptyDay,
-                day === today && styles.todayDay // Apply different style for today
-              ]}
-              onPress={() => handleDayPress(day)}
-            >
-              <Text style={[
-                styles.dayText, 
-                day === null && styles.emptyDayText, 
-                day === today && styles.todayText // Apply different text color for today
-              ]}>
-                {day || ''}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
+      <Calendar
+        onDayPress={handleDayPress}
+        style={styles.calendar}
+        markedDates={{
+          ...Object.keys(events).reduce((acc, date) => {
+            acc[date] = { marked: true, dotColor: 'blue' };
+            return acc;
+          }, {}),
+          ...(mood && selectedDay
+            ? { [selectedDay]: { marked: true, dotColor: 'green', customStyles: { textStyle: { fontWeight: 'bold' } } } }
+            : {}),
+        }}
+        theme={{
+          todayTextColor: 'red',
+          arrowColor: 'blue',
+          dotColor: '#00adf5',
+          selectedDotColor: '#ffffff',
+          textDayFontFamily: 'monospace',
+          textMonthFontFamily: 'monospace',
+          textDayHeaderFontFamily: 'monospace',
+        }}
+      />
 
       {/* Event Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalBackground}>
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>Add Event for Day {selectedDay}</Text>
+            <Text style={styles.modalTitle}>Add Event for {selectedDay}</Text>
             <TextInput
               style={styles.input}
               placeholder="Event Description"
@@ -166,18 +135,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FAFAFA',
   },
+  calendar: {
+    width: 350, // Make the calendar take the full width of the screen
+    height: 500, // Increase the height of the calendar
+    marginTop: 20, // Add some margin to the top
+  },
   title: {
     fontSize: 28,
     fontWeight: '800',
     color: '#ffc4c4',
-    marginBottom: 150,
+    marginTop: 130,
+    marginBottom: 40,
   },
   button: {
     position: 'absolute',
     top: 40,
     left: 20,
     width: '30%',
-    backgroundColor: '#84ccec',
+    backgroundColor: "#84ccec",
     padding: 20,
     borderRadius: 15,
     alignItems: 'center',
@@ -192,60 +167,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
-  },
-  monthYear: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#333',
-    marginBottom: 20,
-  },
-  calendar: {
-    width: '90%',
-    marginBottom: 20,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 5,
-  },
-  headerText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
-    width: '14%',
-    textAlign: 'center',
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start', // Ensure proper alignment under the header
-  },
-  day: {
-    width: '14%',
-    padding: 10,
-    margin: 5,
-    backgroundColor: '#84ccec',
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 50,
-  },
-  emptyDay: {
-    backgroundColor: 'transparent',
-  },
-  emptyDayText: {
-    color: 'transparent',
-  },
-  dayText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  todayDay: {
-    backgroundColor: '#ff6347', // Highlight today's day
-  },
-  todayText: {
-    color: '#fff',
   },
   modalBackground: {
     flex: 1,
