@@ -29,6 +29,7 @@ export default function TabOneScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Welcome to Introspect!</Text>
+      <Text style={styles.undertitle}>Register your day here</Text>
       <TouchableOpacity style={styles.button} onPress={() => auth.signOut()}>
         <Text style={styles.text}>Sign Out</Text>
       </TouchableOpacity>
@@ -63,6 +64,13 @@ const styles = StyleSheet.create({
     color: '#ffc4c4',
     marginTop: 130,
     marginBottom: 40,
+  },
+  undertitle:{
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#ffc4c4',
+    marginTop: 10,
+    marginBottom: 10,
   },
   button: {
     position: 'absolute',
