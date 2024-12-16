@@ -22,6 +22,7 @@ export default function SpecificDay() {
   const [addObjectiveModalVisible, setAddObjectiveModalVisible] = useState(false); // Modal for adding new objectives
   const [quote, setQuote] = useState(''); // Motivational quote
   const [author, setAuthor] = useState(''); // Author of the quote
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   const auth = getAuth();
   const user = auth.currentUser;
@@ -97,7 +98,12 @@ export default function SpecificDay() {
         <Text style={styles.author}>- {author}</Text>
       </View>
       
-      <Text style={styles.title}>Objectives for {date}</Text>
+      <Text style={styles.title}>Objectives for {currentTime.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })}</Text>
       
       {/* Objectives List */}
       <FlatList

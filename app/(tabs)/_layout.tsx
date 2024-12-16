@@ -20,7 +20,8 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: "#8a4fff",
+        tabBarInactiveTintColor: "black",
         // Disable the static render of the header on web
         // to prevent a hydration error in React Navigation v6.
         headerShown: false,
@@ -64,7 +65,7 @@ export default function TabLayout() {
         name="assistant"
         options={{
           title: 'assistant',
-          tabBarIcon: ({ color }) => <TabBarIcon name="book" color={color} />,
+          tabBarIcon: ({ color }) => <TabBarIcon name="android" color={color} />,
         }}
       />
     </Tabs>
