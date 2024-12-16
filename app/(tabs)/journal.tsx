@@ -20,6 +20,8 @@ export default function JournalScreen() {
   const [entryText, setEntryText] = useState('');
   const [entryImages, setEntryImages] = useState([]);
   const [selectedEntry, setSelectedEntry] = useState(null);
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [todaysQuote, setTodaysQuote] = useState(null);
 
   useEffect(() => {
     // Update time every minute
@@ -222,13 +224,18 @@ export default function JournalScreen() {
             style={styles.entryItem}
             onPress={() => viewEntry(entry)}
           >
-            <Text style={styles.entryDate}>
-              {new Date(entry.date).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })}
-            </Text>
+            <View style={styles.entryHeader}>
+              <Text style={styles.entryDate}>
+                {new Date(entry.date).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })} at {new Date(entry.date).toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </Text>
+            </View>
             <Text numberOfLines={2} style={styles.entryPreview}>
               {entry.text}
             </Text>
@@ -287,7 +294,7 @@ const styles = StyleSheet.create({
   container: {
     marginTop:100,
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#',
   },
   header: {
     padding: 16,
@@ -324,7 +331,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   newEntryButton: {
-    backgroundColor: '#007bff',
+    backgroundColor: '#8a4fff',
     padding: 12,
     margin: 16,
     borderRadius: 8,
@@ -354,7 +361,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   imagePickerButton: {
-    backgroundColor: '#28a745',
+    backgroundColor: '#8a4fff',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -378,7 +385,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   saveButton: {
-    backgroundColor: '#007bff',
+    backgroundColor: '#8a4fff',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -390,7 +397,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   cancelButton: {
-    backgroundColor: '#6c757d',
+    backgroundColor: '#8a4fff',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -467,3 +474,4 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
