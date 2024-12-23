@@ -13,7 +13,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 
-//aici cheie openai
+import { OPENAI_API_KEY } from '../../key';
 
 interface Message {
   role: 'user' | 'assistant';
