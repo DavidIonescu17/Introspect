@@ -69,8 +69,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     marginBottom: 30,
-    color: '#ffc4c4',
+    color: '#ffc4c1',
     fontFamily: 'Poppins_700Bold',
+    shadowColor: '#606060', // Darker shadow for more contrast
+    shadowOffset: { width: 0, height: 2 }, // Increased height for a deeper shadow
+    shadowOpacity: 0.2, // Slightly more opaque shadow
+    shadowRadius: 0.2,
   },
   logo: {
     width: 300,
@@ -80,11 +84,21 @@ const styles = StyleSheet.create({
   },
   textInput: {
     height: 50,
-    borderColor: 'gray',
+    borderColor: '#ddd', // Subtle border color for a modern look
     borderWidth: 1,
-    padding: 10,
+    borderRadius: 8, // Rounded corners for a sleek appearance
+    paddingHorizontal: 15, // Add padding for horizontal spacing
+    paddingVertical: 12, // Vertical padding for balanced spacing
     marginBottom: 20,
     width: '80%',
+    backgroundColor: '#f9f9f9', // Light background for contrast
+    fontSize: 16, // Modern font size
+    color: '#333', // Subtle text color
+    shadowColor: '#000', // Optional shadow for depth
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2, // For shadow on Android
   },
   button: {
     backgroundColor: '#ffc4c4',

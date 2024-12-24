@@ -6,6 +6,7 @@ import { getAuth } from 'firebase/auth';
 import { router } from 'expo-router';
 import Toast from 'react-native-toast-message';
 
+
 export default function TabOneScreen() {
   getAuth().onAuthStateChanged((user) => {
     if (!user) router.replace('/');
@@ -29,6 +30,7 @@ export default function TabOneScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Welcome to Introspect!</Text>
+      <Text style={styles.undertitle}>Register your day here</Text>
       <TouchableOpacity style={styles.button} onPress={() => auth.signOut()}>
         <Text style={styles.text}>Sign Out</Text>
       </TouchableOpacity>
@@ -60,18 +62,26 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#ffc4c4',
+    color: '#8a4fff',
     marginTop: 130,
     marginBottom: 40,
+  },
+  undertitle:{
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#8a4fff',
+    marginTop: 10,
+    marginBottom: 10,
   },
   button: {
     position: 'absolute',
     top: 40,
     left: 20,
-    width: '30%',
-    backgroundColor: "#84ccec",
-    padding: 20,
-    borderRadius: 15,
+    width: '20%', 
+    height: '6%', 
+    backgroundColor: "#8a4fff",
+    padding: 10, // Reduced from 20
+    borderRadius: 10, // Adjusted to keep proportions
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#84ccec',
@@ -82,12 +92,14 @@ const styles = StyleSheet.create({
   },
   text: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 13, 
     fontWeight: '600',
   },
+
   calendar: {
     width: 350,
-    height: 500,
-    marginTop: 20,
+    height: 300,
+    marginTop: 30,
+    marginBottom: 200,
   },
 });
