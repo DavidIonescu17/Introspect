@@ -22,11 +22,9 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: "#8a4fff",
         tabBarInactiveTintColor: "black",
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
         headerShown: false,
       }}>
-       <Tabs.Screen
+      <Tabs.Screen
         name="index"
         options={{
           title: 'Calendar',
@@ -54,7 +52,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabBarIcon name="list" color={color} />,
         }}
       />
-       <Tabs.Screen
+      <Tabs.Screen
         name="journal"
         options={{
           title: 'Journal',
@@ -64,8 +62,15 @@ export default function TabLayout() {
       <Tabs.Screen
         name="assistant"
         options={{
-          title: 'assistant',
+          title: 'Assistant',
           tabBarIcon: ({ color }) => <TabBarIcon name="android" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="therapists"
+        options={{
+          title: 'Therapists',
+          tabBarIcon: ({ color }) => <TabBarIcon name="user-md" color={color} />, // Icon de tip medic
         }}
       />
     </Tabs>
