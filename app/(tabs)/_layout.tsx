@@ -46,13 +46,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="toDoList"
-        options={{
-          title: 'To Do List',
-          tabBarIcon: ({ color }) => <TabBarIcon name="list" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="journal"
         options={{
           title: 'Journal',
