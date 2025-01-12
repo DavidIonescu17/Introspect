@@ -10,7 +10,7 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import { db } from '../firebaseConfig';
 import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
@@ -25,13 +25,20 @@ export default function SpecificDay() {
   const [author, setAuthor] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [currentTime] = useState(new Date());
 
   const auth = getAuth();
   const user = auth.currentUser;
   const objectivesCollection = collection(db, 'objectives');
 
+  // Check if the selected date is before today
+  const isPastDate = new Date(date) < new Date(new Date().setHours(0, 0, 0, 0));
+
   const fetchQuote = async () => {
+    if (isPastDate) {
+      setIsLoading(false);
+      return;
+    }
+    
     try {
       setIsLoading(true);
       const apiUrl = 'https://zenquotes.io/api/random/';
@@ -51,6 +58,7 @@ export default function SpecificDay() {
     }
   };
 
+  // Rest of the functions remain the same
   const fetchObjectives = async () => {
     if (user) {
       try {
@@ -72,6 +80,7 @@ export default function SpecificDay() {
           completed: false,
           userId: user.uid,
           date: date,
+          addedLater: isPastDate,
         });
         setNewObjective('');
         setAddObjectiveModalVisible(false);
@@ -111,140 +120,175 @@ export default function SpecificDay() {
   }, [date]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Daily Objectives</Text>
-          <Text style={styles.headerDate}>
-            {currentTime.toLocaleDateString('en-US', {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric'
-            })}
-          </Text>
-        </View>
-
-        {/* Quote Section */}
-        <View style={styles.quoteCard}>
-          <Text style={styles.quoteTitle}>Inspiration for Today</Text>
-          {isLoading ? (
-            <ActivityIndicator size="large" color="#6B4EFF" />
-          ) : (
-            <>
-              <Text style={styles.quoteText}>"{quote}"</Text>
-              <Text style={styles.quoteAuthor}>― {author}</Text>
-            </>
-          )}
-        </View>
-
-        {/* Error Message */}
-        {error && (
-          <View style={styles.errorCard}>
-            <Text style={styles.errorText}>{error}</Text>
+    <>
+      <Stack.Screen 
+        options={{
+          headerShown: true,
+          headerTitle: "",
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: '#6B4EFF' },
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backButton2}
+            >
+              <Text style={styles.backButtonText2}>Back</Text>
+            </TouchableOpacity>
+          ),
+        }} 
+      />
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>
+              {isPastDate ? 'Past Objectives' : 'Daily Objectives'}
+            </Text>
+            <Text style={styles.headerDate}>
+              {new Date(date).toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric'
+              })}
+            </Text>
           </View>
-        )}
 
-        {/* Objectives List */}
-        <FlatList
-          style={styles.list}
-          data={objectives}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.objectiveCard}>
-              <View style={styles.objectiveContent}>
-                <Text style={[
-                  styles.objectiveText,
-                  item.completed && styles.completedObjective
-                ]}>
-                  {item.objective}
+          {/* Quote Section - Only shown for current/future dates */}
+          {!isPastDate && (
+            <View style={styles.quoteCard}>
+              <Text style={styles.quoteTitle}>Inspiration for Today</Text>
+              {isLoading ? (
+                <ActivityIndicator size="large" color="#6B4EFF" />
+              ) : (
+                <>
+                  <Text style={styles.quoteText}>"{quote}"</Text>
+                  <Text style={styles.quoteAuthor}>― {author}</Text>
+                </>
+              )}
+            </View>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <View style={styles.errorCard}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
+          {/* Past Date Notice */}
+          {isPastDate && (
+            <View style={styles.pastDateNotice}>
+              <Text style={styles.pastDateNoticeText}>
+                You're viewing a past date. You can add objectives you forgot to record.
+              </Text>
+            </View>
+          )}
+
+          {/* Objectives List */}
+          <FlatList
+            style={styles.list}
+            data={objectives}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <View style={styles.objectiveCard}>
+                <View style={styles.objectiveContent}>
+                  {item.addedLater && (
+                    <Text style={styles.addedLaterTag}>Added later</Text>
+                  )}
+                  <Text style={[
+                    styles.objectiveText,
+                    item.completed && styles.completedObjective
+                  ]}>
+                    {item.objective}
+                  </Text>
+                  <View style={styles.objectiveActions}>
+                    <TouchableOpacity
+                      style={[styles.actionButton, 
+                        item.completed ? styles.undoButton : styles.completeButton
+                      ]}
+                      onPress={() => updateObjective(item.id, item.completed)}
+                    >
+                      <Text style={styles.actionButtonText}>
+                        {item.completed ? 'Undo' : 'Complete'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.deleteButton]}
+                      onPress={() => deleteObjective(item.id)}
+                    >
+                      <Text style={styles.actionButtonText}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>
+                  {isPastDate 
+                    ? 'No objectives were set for this day. Add ones you might have forgotten.'
+                    : 'No objectives set for today. Add one to get started!'}
                 </Text>
-                <View style={styles.objectiveActions}>
+              </View>
+            }
+          />
+
+          {/* Add Button */}
+          <View style={styles.actionBar}>
+            <TouchableOpacity
+              style={[styles.mainButton, styles.addButton]}
+              onPress={() => setAddObjectiveModalVisible(true)}
+            >
+              <Text style={styles.mainButtonText}>
+                {isPastDate ? 'Add Past Objective' : 'Add Objective'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Add Objective Modal */}
+          <Modal
+            visible={addObjectiveModalVisible}
+            animationType="slide"
+            transparent={true}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>
+                  {isPastDate ? 'Add Past Objective' : 'New Objective'}
+                </Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder={isPastDate 
+                    ? "What objective did you forget to add?"
+                    : "What would you like to achieve today?"}
+                  placeholderTextColor="#9991B1"
+                  value={newObjective}
+                  onChangeText={setNewObjective}
+                  multiline
+                  maxLength={200}
+                />
+                <View style={styles.modalActions}>
                   <TouchableOpacity
-                    style={[styles.actionButton, 
-                      item.completed ? styles.undoButton : styles.completeButton
-                    ]}
-                    onPress={() => updateObjective(item.id, item.completed)}
+                    style={[styles.modalButton, styles.modalCancelButton]}
+                    onPress={() => setAddObjectiveModalVisible(false)}
                   >
-                    <Text style={styles.actionButtonText}>
-                      {item.completed ? 'Undo' : 'Complete'}
-                    </Text>
+                    <Text style={styles.modalCancelText}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.actionButton, styles.deleteButton]}
-                    onPress={() => deleteObjective(item.id)}
+                    style={[styles.modalButton, styles.modalSaveButton]}
+                    onPress={addObjective}
                   >
-                    <Text style={styles.actionButtonText}>Delete</Text>
+                    <Text style={styles.modalSaveText}>Save</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             </View>
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>
-                No objectives set for today. Add one to get started!
-              </Text>
-            </View>
-          }
-        />
-
-        {/* Bottom Action Bar */}
-        <View style={styles.actionBar}>
-          <TouchableOpacity
-            style={[styles.mainButton, styles.addButton]}
-            onPress={() => setAddObjectiveModalVisible(true)}
-          >
-            <Text style={styles.mainButtonText}>Add Objective</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.mainButton, styles.backButton]}
-            onPress={() => router.push('/')}
-          >
-            <Text style={styles.mainButtonText}>Calendar</Text>
-          </TouchableOpacity>
+          </Modal>
         </View>
-
-        {/* Add Objective Modal */}
-        <Modal
-          visible={addObjectiveModalVisible}
-          animationType="slide"
-          transparent={true}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>New Objective</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="What would you like to achieve today?"
-                placeholderTextColor="#9991B1"
-                value={newObjective}
-                onChangeText={setNewObjective}
-                multiline
-                maxLength={200}
-              />
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalCancelButton]}
-                  onPress={() => setAddObjectiveModalVisible(false)}
-                >
-                  <Text style={styles.modalCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalSaveButton]}
-                  onPress={addObjective}
-                >
-                  <Text style={styles.modalSaveText}>Save</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -457,4 +501,41 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
   },
+  pastDateNotice: {
+    margin: 16,
+    padding: 12,
+    backgroundColor: '#E0D9FF',
+    borderRadius: 12,
+  },
+  pastDateNoticeText: {
+    color: '#6B4EFF',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  addedLaterTag: {
+    color: '#6B4EFF',
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginBottom: 4,
+  },
+  backButton2: {
+    marginLeft: 0,
+    padding: 10, 
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3, 
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0, 
+    borderColor: '#E0E0E0',
+  },
+  backButtonText2: {
+    color: '#6B4EFF',
+    fontSize: 16,
+    fontWeight: '600',
+  }
 });

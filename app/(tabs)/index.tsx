@@ -31,9 +31,6 @@ export default function TabOneScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Welcome to Introspect!</Text>
       <Text style={styles.undertitle}>Register your day here</Text>
-      <TouchableOpacity style={styles.button} onPress={() => auth.signOut()}>
-        <Text style={styles.text}>Sign Out</Text>
-      </TouchableOpacity>
 
       <Calendar
         onDayPress={handleDayPress}

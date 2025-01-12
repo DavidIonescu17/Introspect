@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, SafeAreaView, Image, ScrollView } from 'react-native';
 import { auth } from '../firebaseConfig';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { useRouter } from 'expo-router';
-import { NavigationContainer } from '@react-navigation/native';
+import { useRouter, Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { Poppins_400Regular, Poppins_700Bold } from '@expo-google-fonts/poppins';
 
@@ -29,7 +28,12 @@ export default function SignUp() {
     };
 
     return (
-        <NavigationContainer>
+        <>
+            <Stack.Screen 
+                options={{
+                    headerShown: false,
+                }} 
+            />
             <SafeAreaView style={styles.container}>
                 <ScrollView 
                     contentContainerStyle={styles.scrollContainer}
@@ -72,13 +76,13 @@ export default function SignUp() {
                     </TouchableOpacity>
                     <TouchableOpacity 
                         style={styles.secondaryButton} 
-                        onPress={() => router.push('/login')}
+                        onPress={() => router.back()}
                     >
                         <Text style={styles.secondaryButtonText}>Back to Login</Text>
                     </TouchableOpacity>
                 </ScrollView>
             </SafeAreaView>
-        </NavigationContainer>
+        </>
     );
 }
 

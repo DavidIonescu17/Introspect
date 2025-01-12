@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet,
   View,
@@ -11,8 +12,8 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   SafeAreaView,
+  Modal,
 } from 'react-native';
-
 import { OPENAI_API_KEY } from '../../key';
 
 interface Message {
@@ -36,14 +37,25 @@ Key guidelines:
 - Encourage seeking professional help when appropriate
 
 Crisis resources to share when needed:
-- National Crisis Hotline (US): 988
-- Crisis Text Line: Text HOME to 741741`
+- National Crisis Hotline (RO): 112
+- For suicidal crisis (RO): 0800 801 200 or mail 24/7 at sos@antisuicid.ro`
 };
+interface Conversation {
+  id: string;
+  messages: Message[];
+  lastUpdated: string;
+  preview: string;
+}
+const STORAGE_KEY = 'chatbot_conversations';
+
 
 export default function ChatbotScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [isHistoryModalVisible, setHistoryModalVisible] = useState(false);
 
   const getCurrentTime = () => {
     const now = new Date();
@@ -56,22 +68,94 @@ export default function ChatbotScreen() {
   const dismissKeyboard = () => {
     Keyboard.dismiss();
   };
+  useEffect(() => {
+    loadConversations();
+  }, []);
+
+  const loadConversations = async () => {
+    try {
+      const storedConversations = await AsyncStorage.getItem(STORAGE_KEY);
+      if (storedConversations) {
+        setConversations(JSON.parse(storedConversations));
+      }
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+    }
+  };
+
+  const saveCurrentConversation = async () => {
+    if (!currentConversationId || !messages.length) return;
+
+    const updatedConversations = conversations.map(conv =>
+      conv.id === currentConversationId
+        ? {
+            ...conv,
+            messages,
+            lastUpdated: new Date().toISOString(),
+            preview: messages[messages.length - 1].content.substring(0, 50) + '...'
+          }
+        : conv
+    );
+
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedConversations));
+      setConversations(updatedConversations);
+    } catch (error) {
+      console.error('Error saving conversation:', error);
+    }
+  };
+
+  const startNewConversation = async () => {
+    const newId = Date.now().toString();
+    const newConversation: Conversation = {
+      id: newId,
+      messages: [],
+      lastUpdated: new Date().toISOString(),
+      preview: 'New conversation'
+    };
+  
+    // Update conversations in state and storage
+    const updatedConversations = [...conversations, newConversation];
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedConversations));
+      setConversations(updatedConversations);
+      setCurrentConversationId(newId);
+      setMessages([]);
+      setHistoryModalVisible(false);
+    } catch (error) {
+      console.error('Error saving new conversation:', error);
+    }
+  };
+  const loadConversation = (conversationId: string) => {
+    const conversation = conversations.find(conv => conv.id === conversationId);
+    if (conversation) {
+      setMessages(conversation.messages);
+      setCurrentConversationId(conversationId);
+      setHistoryModalVisible(false);
+    }
+  };
 
   const sendMessage = async () => {
     if (!userInput.trim()) return;
-
+    
+    // Create new conversation if none exists
+    if (!currentConversationId) {
+      await startNewConversation();
+    }
+  
     dismissKeyboard();
-
+  
     const userMessage = {
       role: 'user' as const,
       content: userInput,
       timestamp: getCurrentTime(),
     };
-
-    setMessages((prev) => [...prev, userMessage]);
+  
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setLoading(true);
     setUserInput('');
-
+  
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -83,47 +167,63 @@ export default function ChatbotScreen() {
           model: 'gpt-3.5-turbo',
           messages: [
             THERAPIST_SYSTEM_MESSAGE,
-            ...messages,
-            userMessage
+            ...updatedMessages,
           ].map(({ role, content }) => ({ role, content })),
-          max_tokens: 250, // Increased for more detailed responses
-          temperature: 0.7, // Balanced between consistency and empathy
+          max_tokens: 250,
+          temperature: 0.7,
         }),
       });
-
+  
       const data = await response.json();
-
+  
       if (data.choices && data.choices.length > 0) {
         const botMessage = {
           role: 'assistant' as const,
           content: data.choices[0].message.content.trim(),
           timestamp: getCurrentTime(),
         };
-
-        setMessages((prev) => [...prev, botMessage]);
-      } else {
-        throw new Error('Invalid response from OpenAI');
+  
+        const finalMessages = [...updatedMessages, botMessage];
+        setMessages(finalMessages);
+  
+        // Save conversation immediately after updating messages
+        const updatedConversations = conversations.map(conv =>
+          conv.id === currentConversationId
+            ? {
+                ...conv,
+                messages: finalMessages,
+                lastUpdated: new Date().toISOString(),
+                preview: botMessage.content.substring(0, 50) + '...'
+              }
+            : conv
+        );
+  
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedConversations));
+        setConversations(updatedConversations);
       }
     } catch (error) {
-      console.error('Error fetching response from OpenAI:', error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: "I apologize, but I'm having trouble responding right now. If you're in crisis, please call 988 or text HOME to 741741 for immediate support.",
-          timestamp: getCurrentTime(),
-        },
-      ]);
+      console.error('Error:', error);
+      const errorMessage = {
+        role: 'assistant',
+        content: "I apologize, but I'm having trouble responding right now. If you're in crisis, please call 988 or text HOME to 741741 for immediate support.",
+        timestamp: getCurrentTime(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setLoading(false);
     }
   };
+  useEffect(() => {
+    if (currentConversationId && messages.length > 0) {
+      saveCurrentConversation();
+    }
+  }, [messages]);
 
   // Rest of the component remains the same...
   const renderMessage = ({ item }: { item: Message }) => (
     <View style={styles.messageWrapper}>
       <Text style={styles.roleLabel}>
-        {item.role === 'user' ? 'You' : 'AI Therapist'}
+        {item.role === 'user' ? '' : 'AI Assistant'}
       </Text>
       <View
         style={[
@@ -143,12 +243,73 @@ export default function ChatbotScreen() {
     </View>
   );
 
+  const ConversationsModal = () => (
+  <Modal
+    visible={isHistoryModalVisible}
+    animationType="slide"
+    transparent={true}
+    onRequestClose={() => setHistoryModalVisible(false)}
+  >
+    <View style={styles.modalContainer}>
+      <View style={styles.modalContent}>
+        <Text style={styles.modalTitle}>Conversation History</Text>
+        <TouchableOpacity
+          style={styles.newConversationButton}
+          onPress={startNewConversation}
+        >
+          <Text style={styles.newConversationButtonText}>Start New Conversation</Text>
+        </TouchableOpacity>
+        <FlatList
+          data={conversations.sort((a, b) => 
+            new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
+          )}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.conversationItem}
+              onPress={() => loadConversation(item.id)}
+            >
+              <Text style={styles.conversationPreview}>{item.preview}</Text>
+              <View style={styles.conversationMetadata}>
+                <Text style={styles.conversationDate}>
+                  {new Date(item.lastUpdated).toLocaleDateString()}
+                </Text>
+                <Text style={styles.conversationTime}>
+                  {new Date(item.lastUpdated).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={() => setHistoryModalVisible(false)}
+        >
+          <Text style={styles.closeButtonText}>Close</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </Modal>
+);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <Text style={styles.headerText}>AI Support Assistant</Text>
         <Text style={styles.headerSubtext}>A safe space to talk - Remember, I'm an AI assistant, not a replacement for professional help</Text>
+        <TouchableOpacity
+        style={styles.historyButton}
+        onPress={() => setHistoryModalVisible(true)}
+      >
+        <Text style={styles.historyButtonText}>History</Text>
+      </TouchableOpacity>
       </View>
+
+       <ConversationsModal />
+
 
       <TouchableWithoutFeedback onPress={dismissKeyboard}>
         <KeyboardAvoidingView
@@ -162,6 +323,7 @@ export default function ChatbotScreen() {
             renderItem={renderMessage}
             contentContainerStyle={styles.chatContainer}
             keyboardShouldPersistTaps="handled"
+            inverted={false}
           />
 
           <View style={styles.inputContainer}>
@@ -305,4 +467,89 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 16,
   },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    width: '90%',
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  conversationItem: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  conversationPreview: {
+    fontSize: 16,
+    marginBottom: 5,
+  },
+  conversationDate: {
+    fontSize: 12,
+    color: '#666',
+  },
+  closeButton: {
+    marginTop: 20,
+    padding: 15,
+    backgroundColor: '#8A2BE2',
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  historyButton: {
+    position: 'absolute',
+    right: 20,
+    padding: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 15,
+  },
+  historyButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  newConversationButton: {
+    backgroundColor: '#8A2BE2',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 20,
+  },
+  newConversationButtonText: {
+    color: 'white',
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  conversationMetadata: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 5,
+  },
+  conversationTime: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 10,
+  },
+  chatContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 10,
+    flexGrow: 1, // Ensures content can scroll
+  }
 });
