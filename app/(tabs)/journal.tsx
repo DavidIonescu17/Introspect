@@ -30,7 +30,7 @@ const MOODS = {
   neutral: {
     icon: 'emoticon-neutral-outline',
     label: 'Meh',
-    color: '#90A4AE'
+    color: '#92beb5'
   },
   sad: {
     icon: 'emoticon-sad-outline',
@@ -40,7 +40,7 @@ const MOODS = {
   verySad: {
     icon: 'emoticon-cry-outline',
     label: 'Very Sad',
-    color: '#8B7E74'
+    color: '#b44560'
   }
 };
 
@@ -158,14 +158,23 @@ const JournalScreen = () => {
     }
 
     const newEntry = {
-      id: Date.now(),
+      id: selectedEntry ? selectedEntry.id : Date.now(),
       text: entryText,
       images: entryImages,
       date: new Date().toISOString(),
       mood: selectedMood || 'neutral' 
     };
+    let updatedEntries;
 
-    const updatedEntries = [newEntry, ...entries];
+  if (selectedEntry) {
+    // Dacă este o editare, înlocuiește intrarea existentă
+    updatedEntries = entries.map((entry) =>
+      entry.id === selectedEntry.id ? newEntry : entry
+    );
+  } else {
+    // Dacă este o nouă intrare, adaug-o la început
+    updatedEntries = [newEntry, ...entries];
+  }
 
     try {
       // Save entries
@@ -195,6 +204,7 @@ const JournalScreen = () => {
       setEntryText('');
       setEntryImages([]);
       setSelectedMood(null);
+      setSelectedEntry(null);
       setIsAddingEntry(false);
     } catch (error) {
       console.error('Error saving entry', error);

@@ -15,23 +15,14 @@ const App = () => {
   const [filteredData, setFilteredData] = useState([]);
   const [selectedFiliala, setSelectedFiliala] = useState(null);
   const [selectedSpecializare, setSelectedSpecializare] = useState(null);
-
-  const [filiale, setFiliale] = useState([]);
+  const [filialaQuery, setFilialaQuery] = useState('');
   const [specializari, setSpecializari] = useState([]);
-  const [openFiliala, setOpenFiliala] = useState(false); // Control deschis/inchis
   const [openSpecializare, setOpenSpecializare] = useState(false);
 
   useEffect(() => {
     // Inițializează datele filtrate
     setFilteredData(experti);
 
-    // Extrage toate filialele și specializările unice
-    const filialeUnice = Array.from(
-      new Set(experti.map((item) => item["Filiala"]))
-    )
-      .sort() // Sortează alfabetic
-      .map((item) => ({ label: item, value: item }));
-  
     const specializariUnice = Array.from(
       new Set(
         experti.flatMap((item) =>
@@ -42,7 +33,6 @@ const App = () => {
       .sort() // Sortează alfabetic
       .map((item) => ({ label: item, value: item }));
 
-    setFiliale([{ label: 'Toate', value: null }, ...filialeUnice]);
     setSpecializari([{ label: 'Toate', value: null }, ...specializariUnice]);
   }, []);
 
@@ -60,8 +50,12 @@ const App = () => {
     }
 
     // Filtrare după filială
-    if (selectedFiliala) {
-      data = data.filter((item) => item["Filiala"] === selectedFiliala);
+    if (filialaQuery.trim() !== '') {
+      data = data.filter((item) =>
+        item["Filiala"]
+          .toLowerCase()
+          .includes(filialaQuery.toLowerCase())
+      );
     }
 
     // Filtrare după specializare
@@ -78,7 +72,7 @@ const App = () => {
 
   useEffect(() => {
     filterData(); // Refiltrează datele când se modifică filtrele
-  }, [searchQuery, selectedFiliala, selectedSpecializare]);
+  }, [searchQuery, filialaQuery, selectedSpecializare]);
 
   const renderItem = ({ item }) => (
     <View style={styles.card}>
@@ -110,20 +104,14 @@ const App = () => {
         onChangeText={setSearchQuery}
       />
 
-      {/* Dropdown pentru Filiala */}
-      <Text style={styles.filterLabel}>Filiala:</Text>
-      <DropDownPicker
-        open={openFiliala}
-        value={selectedFiliala}
-        items={filiale}
-        setOpen={setOpenFiliala}
-        setValue={setSelectedFiliala}
-        placeholder="Selectează o filială"
-        style={styles.dropdown}
-        dropDownContainerStyle={styles.dropdownContainer}
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Caută după filială"
+        value={filialaQuery}
+        onChangeText={setFilialaQuery}
       />
 
-      {/* Dropdown pentru Specializare */}
+
       <Text style={styles.filterLabel}>Specializare:</Text>
       <DropDownPicker
         open={openSpecializare}
@@ -136,7 +124,6 @@ const App = () => {
         dropDownContainerStyle={styles.dropdownContainer}
       />
 
-      {/* Afișarea Listei */}
       <FlatList
         data={filteredData}
         keyExtractor={(item, index) => index.toString()}
