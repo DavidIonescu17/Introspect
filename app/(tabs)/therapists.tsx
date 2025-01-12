@@ -5,189 +5,213 @@ import {
   TextInput,
   FlatList,
   StyleSheet,
-  SafeAreaView,
-  ActivityIndicator,
-  TouchableOpacity,
 } from 'react-native';
-import jsonData from '../../assets/data/hospital_data.json';
+import DropDownPicker from 'react-native-dropdown-picker';
 
-interface Hospital {
-  id: number;
-  name: string;
-  county: string;
-}
+import experti from '../../assets/data/experti.json'; // Importă JSON-ul
 
-export default function FilterByCounty() {
-  const [hospitals, setHospitals] = useState<Hospital[]>([]);
-  const [filteredHospitals, setFilteredHospitals] = useState<Hospital[]>([]);
+const App = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [filteredData, setFilteredData] = useState([]);
+  const [selectedFiliala, setSelectedFiliala] = useState(null);
+  const [selectedSpecializare, setSelectedSpecializare] = useState(null);
+
+  const [filiale, setFiliale] = useState([]);
+  const [specializari, setSpecializari] = useState([]);
+  const [openFiliala, setOpenFiliala] = useState(false); // Control deschis/inchis
+  const [openSpecializare, setOpenSpecializare] = useState(false);
 
   useEffect(() => {
-    try {
-      const psychiatricHospitals = jsonData.records
-        .filter((record: any) => record[3] === 'spital psihiatrie')
-        .map((record: any) => ({
-          id: record[0],
-          name: record[5],
-          county: record[6],
-        }));
-      setHospitals(psychiatricHospitals);
-      setFilteredHospitals(psychiatricHospitals);
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    // Inițializează datele filtrate
+    setFilteredData(experti);
+
+    // Extrage toate filialele și specializările unice
+    const filialeUnice = Array.from(
+      new Set(experti.map((item) => item["Filiala"]))
+    )
+      .sort() // Sortează alfabetic
+      .map((item) => ({ label: item, value: item }));
+  
+    const specializariUnice = Array.from(
+      new Set(
+        experti.flatMap((item) =>
+          item["Specialitate / specialități expert psiholog"].split(', ')
+        )
+      )
+    )
+      .sort() // Sortează alfabetic
+      .map((item) => ({ label: item, value: item }));
+
+    setFiliale([{ label: 'Toate', value: null }, ...filialeUnice]);
+    setSpecializari([{ label: 'Toate', value: null }, ...specializariUnice]);
   }, []);
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    const lowerQuery = query.toLowerCase();
-    const filtered = hospitals.filter((hospital) =>
-      hospital.county.toLowerCase().includes(lowerQuery)
-    );
-    setFilteredHospitals(filtered);
+  // Funcție de filtrare principală
+  const filterData = () => {
+    let data = experti;
+
+    // Filtrare după căutare
+    if (searchQuery.trim() !== '') {
+      data = data.filter((item) =>
+        item["Nume și prenume psiholog cu drept de liberă practică"]
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Filtrare după filială
+    if (selectedFiliala) {
+      data = data.filter((item) => item["Filiala"] === selectedFiliala);
+    }
+
+    // Filtrare după specializare
+    if (selectedSpecializare) {
+      data = data.filter((item) =>
+        item["Specialitate / specialități expert psiholog"]
+          .split(', ')
+          .includes(selectedSpecializare)
+      );
+    }
+
+    setFilteredData(data);
   };
 
-  const renderHospitalCard = ({ item }: { item: Hospital }) => (
-    <TouchableOpacity style={styles.hospitalCard}>
-      <View style={styles.cardContent}>
-        <Text style={styles.hospitalName}>{item.name}</Text>
-        <View style={styles.countyContainer}>
-          <Text style={styles.countyLabel}>Județ:</Text>
-          <Text style={styles.countyText}>{item.county}</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+  useEffect(() => {
+    filterData(); // Refiltrează datele când se modifică filtrele
+  }, [searchQuery, selectedFiliala, selectedSpecializare]);
 
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8A2BE2" />
-      </View>
-    );
-  }
+  const renderItem = ({ item }) => (
+    <View style={styles.card}>
+      <Text style={styles.name}>
+        {item["Nume și prenume psiholog cu drept de liberă practică"]}
+      </Text>
+      <Text style={styles.info}>Filiala: {item["Filiala"]}</Text>
+      <Text style={styles.info}>Email: {item["Email"]}</Text>
+      <Text style={styles.info}>Telefon: {item["Telefon"]}</Text>
+      <Text style={styles.info}>
+        Specializări: {item["Specialitate / specialități expert psiholog"]}
+      </Text>
+      <Text style={styles.info}>
+        Forma exercitare:{" "}
+        {item["Forma de exercitare a profesiei de psiholog cu drept de liberă practică"]}
+      </Text>
+    </View>
+  );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.headerContainer}>
-        <Text style={styles.header}>Spitale de Psihiatrie</Text>
-      </View>
-      
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Caută după județ..."
-          value={searchQuery}
-          onChangeText={handleSearch}
-          placeholderTextColor="#666"
-        />
-      </View>
+    <View style={styles.container}>
+      <Text style={styles.header}>Lista Experților Psihologi</Text>
 
+      {/* Căutare */}
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Caută după nume"
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+
+      {/* Dropdown pentru Filiala */}
+      <Text style={styles.filterLabel}>Filiala:</Text>
+      <DropDownPicker
+        open={openFiliala}
+        value={selectedFiliala}
+        items={filiale}
+        setOpen={setOpenFiliala}
+        setValue={setSelectedFiliala}
+        placeholder="Selectează o filială"
+        style={styles.dropdown}
+        dropDownContainerStyle={styles.dropdownContainer}
+      />
+
+      {/* Dropdown pentru Specializare */}
+      <Text style={styles.filterLabel}>Specializare:</Text>
+      <DropDownPicker
+        open={openSpecializare}
+        value={selectedSpecializare}
+        items={specializari}
+        setOpen={setOpenSpecializare}
+        setValue={setSelectedSpecializare}
+        placeholder="Selectează o specializare"
+        style={styles.dropdown}
+        dropDownContainerStyle={styles.dropdownContainer}
+      />
+
+      {/* Afișarea Listei */}
       <FlatList
-        data={filteredHospitals}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={renderHospitalCard}
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
+        data={filteredData}
+        keyExtractor={(item, index) => index.toString()}
+        renderItem={renderItem}
         ListEmptyComponent={() => (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Nu s-au găsit spitale în acest județ</Text>
-          </View>
+          <Text style={styles.noResults}>Nu s-au găsit rezultate!</Text>
         )}
       />
-    </SafeAreaView>
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
-  headerContainer: {
-    backgroundColor: '#8A2BE2',
+    backgroundColor: '#f9f9f9',
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginTop: 50
   },
   header: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    marginBottom: 16,
     textAlign: 'center',
   },
-  searchContainer: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+  searchInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 16,
+    backgroundColor: '#fff',
   },
-  input: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    padding: 12,
+  filterLabel: {
     fontSize: 16,
-    color: '#333',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    marginBottom: 8,
+    fontWeight: 'bold',
   },
-  listContainer: {
+  dropdown: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  dropdownContainer: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  card: {
+    backgroundColor: '#fff',
     padding: 16,
-  },
-  hospitalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
     marginBottom: 12,
+    borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
   },
-  cardContent: {
-    padding: 16,
-  },
-  hospitalName: {
+  name: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  countyContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  countyLabel: {
+  info: {
     fontSize: 14,
     color: '#666',
-    marginRight: 4,
+    marginBottom: 4,
   },
-  countyText: {
-    fontSize: 14,
-    color: '#8A2BE2',
-    fontWeight: '500',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
+  noResults: {
     textAlign: 'center',
+    color: '#666',
+    fontSize: 16,
+    marginTop: 20,
   },
 });
+
+export default App;

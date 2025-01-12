@@ -356,14 +356,14 @@ export default function ChatbotScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#8A2BE2',
+    backgroundColor: '#6B4EFF',
   },
   header: {
-    backgroundColor: '#8A2BE2',
+    backgroundColor: '#6B4EFF',
     padding: 20,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#7B27CC',
+    borderBottomColor: '#6B4EFF',
   },
   headerText: {
     color: '#FFFFFF',
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
   },
   userMessage: {
     alignSelf: 'flex-end',
-    backgroundColor: '#8A2BE2',
+    backgroundColor: '#6B4EFF',
     borderBottomRightRadius: 4,
   },
   botMessage: {
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
   },
   sendButton: {
     marginLeft: 12,
-    backgroundColor: '#8A2BE2',
+    backgroundColor: '#6B4EFF',
     borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 24,
@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
   closeButton: {
     marginTop: 20,
     padding: 15,
-    backgroundColor: '#8A2BE2',
+    backgroundColor: '#6B4EFF',
     borderRadius: 10,
     alignItems: 'center',
   },
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
   },
   historyButton: {
     position: 'absolute',
-    right: 20,
+    left: 20,
     padding: 8,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 15,
@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   newConversationButton: {
-    backgroundColor: '#8A2BE2',
+    backgroundColor: '#6B4EFF',
     padding: 15,
     borderRadius: 10,
     marginBottom: 20,

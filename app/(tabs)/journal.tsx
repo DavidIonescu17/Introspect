@@ -8,10 +8,41 @@ import {
   Image,
   TextInput,
   Modal,
-  Alert
+  Alert,
+  TouchableWithoutFeedback,
+  Keyboard
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+
+const MOODS = {
+  veryHappy: {
+    icon: 'emoticon-excited-outline',
+    label: 'Very Happy',
+    color: '#FFD93D'
+  },
+  happy: {
+    icon: 'emoticon-happy-outline',
+    label: 'Happy',
+    color: '#4CAF50'
+  },
+  neutral: {
+    icon: 'emoticon-neutral-outline',
+    label: 'Meh',
+    color: '#90A4AE'
+  },
+  sad: {
+    icon: 'emoticon-sad-outline',
+    label: 'Sad',
+    color: '#7286D3'
+  },
+  verySad: {
+    icon: 'emoticon-cry-outline',
+    label: 'Very Sad',
+    color: '#8B7E74'
+  }
+};
 
 const JournalScreen = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -65,6 +96,43 @@ const JournalScreen = () => {
     }
   };
 
+  const MoodSelector = ({ onSelect, selected, isEditable = true }) => {
+    return (
+      <View style={styles.moodSelector}>
+        {Object.entries(MOODS).map(([key, mood]) => {
+          const isSelected = selected === key;
+  
+          return (
+            <TouchableOpacity
+              key={key}
+              style={[
+                styles.moodButton,
+                isSelected && { backgroundColor: mood.color + '30' }, // Highlight selected mood
+              ]}
+              onPress={() => isEditable && onSelect(key)}
+              disabled={!isEditable}
+            >
+              <MaterialCommunityIcons
+                name={mood.icon}
+                size={32}
+                color={isSelected ? mood.color : '#999'} // Dim the icon if not selected
+              />
+              <Text
+                style={[
+                  styles.moodLabel,
+                  { color: isSelected ? mood.color : '#999' }, // Dim the text if not selected
+                ]}
+              >
+                {mood.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  };
+  
+
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -94,7 +162,7 @@ const JournalScreen = () => {
       text: entryText,
       images: entryImages,
       date: new Date().toISOString(),
-      mood: selectedMood || 'good' // Default to 'good' if no mood is selected
+      mood: selectedMood || 'neutral' 
     };
 
     const updatedEntries = [newEntry, ...entries];
@@ -168,28 +236,8 @@ const JournalScreen = () => {
     setSelectedEntry(entry);
   };
 
-  const GoodMood = () => (
-    <View style={styles.moodEmoji}>
-      <Image source={require('../../assets/images/good-emoji.jpg')} style={styles.moodEmojiImage} />
-      <Text style={styles.moodEmojiText}>Good</Text>
-    </View>
-  );
-
-  const RadMood = () => (
-    <View style={styles.moodEmoji}>
-      <Image source={require('../../assets/images/good-emoji.jpg')} style={styles.moodEmojiImage} />
-      <Text style={styles.moodEmojiText}>Rad</Text>
-    </View>
-  );
-
-  const MehMood = () => (
-    <View style={styles.moodEmoji}>
-      <Image source={require('../../assets/images/good-emoji.jpg')} style={styles.moodEmojiImage} />
-      <Text style={styles.moodEmojiText}>Meh</Text>
-    </View>
-  );
-
   return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
     <View style={styles.container}>
       {/* Header with Date, Time, and Streak */}
       <View style={styles.header}>
@@ -247,9 +295,11 @@ const JournalScreen = () => {
           </View>
 
           <View style={styles.moodContainer}>
-            <GoodMood onPress={() => setSelectedMood('good')} />
-            <RadMood onPress={() => setSelectedMood('rad')} />
-            <MehMood onPress={() => setSelectedMood('meh')} />
+          <MoodSelector
+              onSelect={setSelectedMood}
+              selected={selectedMood}
+              isEditable={true}
+            />
           </View>
 
           <View style={styles.entryActionButtons}>
@@ -304,9 +354,11 @@ const JournalScreen = () => {
                 </TouchableOpacity>
               </View>
             </View>
-            {entry.mood === 'good' && <GoodMood />}
-            {entry.mood === 'rad' && <RadMood />}
-            {entry.mood === 'meh' && <MehMood />}
+            <MoodSelector
+                onSelect={() => {}}
+                selected={entry.mood}
+                isEditable={false}
+              />
             <Text numberOfLines={2} style={styles.entryPreview}>
               {entry.text}
             </Text>
@@ -330,9 +382,7 @@ const JournalScreen = () => {
                   day: 'numeric'
                 })}
               </Text>
-              {selectedEntry.mood === 'good' && <GoodMood />}
-              {selectedEntry.mood === 'rad' && <RadMood />}
-              {selectedEntry.mood === 'meh' && <MehMood />}
+                  
               <Text style={styles.modalText}>{selectedEntry.text}</Text>
               
               {selectedEntry.images && selectedEntry.images.length > 0 && (
@@ -361,6 +411,7 @@ const JournalScreen = () => {
         )}
       </Modal>
     </View>
+    </TouchableWithoutFeedback>
   );
 };
 
@@ -457,11 +508,11 @@ const styles = StyleSheet.create({
   moodContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 0,
   },
   moodEmoji: {
     alignItems: 'center',
-    marginHorizontal: 8,
+    marginHorizontal: 5,
   },
   moodEmojiImage: {
     width: 32,
@@ -576,7 +627,35 @@ const styles = StyleSheet.create({
   closeModalButtonText: {
     color: 'white',
     fontWeight: 'bold',
-  }
+  },
+  moodSelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    marginBottom: 16,
+  },
+  moodButton: {
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 12,
+    width: '18%',
+  },
+  moodLabel: {
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  sectionHeader: {
+    backgroundColor: '#F5F6FA',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2C3E50',
+  },
   });
   
   export default JournalScreen;
