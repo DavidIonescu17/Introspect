@@ -63,7 +63,14 @@ export default function TabLayout() {
         name="therapists"
         options={{
           title: 'Therapists',
-          tabBarIcon: ({ color }) => <TabBarIcon name="user-md" color={color} />, // Icon de tip medic
+          tabBarIcon: ({ color }) => <TabBarIcon name="user-md" color={color} />, 
+        }}
+      />
+      <Tabs.Screen
+        name="hospitals"
+        options={{
+          title: 'Hospitals',
+          tabBarIcon: ({ color }) => <TabBarIcon name="building" color={color} />, 
         }}
       />
     </Tabs>

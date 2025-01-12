@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, TouchableOpacity, Text, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, Text, ScrollView, Image, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { auth } from '../../firebaseConfig';
 import { getAuth } from 'firebase/auth';
@@ -38,7 +38,9 @@ export default function TabOneScreen() {
   const todayDate = getTodayDate();
 
   return (
+    
     <View style={styles.container}>
+      
       <Text style={styles.title}>Welcome to Introspect!</Text>
       <Text style={styles.undertitle}>Register your day here</Text>
 
@@ -123,4 +125,11 @@ const styles = StyleSheet.create({
     marginTop: 30,
     marginBottom: 200,
   },
+  logo: {
+    width: 150,
+    height: 150,
+    marginTop: 100,
+    marginBottom: -100,
+    resizeMode: 'contain',
+  }
 });

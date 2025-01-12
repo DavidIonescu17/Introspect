@@ -40,7 +40,7 @@ export default function SignUp() {
                     showsVerticalScrollIndicator={false}
                 >
                     <Image
-                        source={require('../assets/images/introspect2.png')}
+                        source={require('../assets/images/logoFinal2.png')}
                         style={styles.logo}
                     />
                     <Text style={styles.title}>Create Account</Text>
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
         fontSize: 32,
         fontWeight: '700',
         marginBottom: 40,
-        color: '#6B46C1',
+        color: '#6B4EFF',
         fontFamily: 'Poppins_700Bold',
         textAlign: 'center',
         shadowColor: '#6B46C1',
@@ -110,8 +110,8 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
     },
     logo: {
-        width: 200,
-        height: 200,
+        width: 250,
+        height: 250,
         marginBottom: 20,
         resizeMode: 'contain',
     },
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
         fontFamily: 'Poppins_400Regular',
     },
     primaryButton: {
-        backgroundColor: '#6B46C1',
+        backgroundColor: '#6B4EFF',
         padding: 16,
         borderRadius: 12,
         alignItems: 'center',
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
         fontFamily: 'Poppins_700Bold',
     },
     secondaryButtonText: {
-        color: '#6B46C1',
+        color: '#6B4EFF',
         fontSize: 16,
         fontWeight: '600',
         fontFamily: 'Poppins_700Bold',
