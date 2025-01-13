@@ -8,7 +8,9 @@ import {
   SafeAreaView,
   ActivityIndicator,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import jsonData from '../../assets/data/hospital_data.json';
 
 interface Hospital {
@@ -51,21 +53,25 @@ export default function FilterByCounty() {
   };
 
   const renderHospitalCard = ({ item }: { item: Hospital }) => (
-    <TouchableOpacity style={styles.hospitalCard}>
-      <View style={styles.cardContent}>
-        <Text style={styles.hospitalName}>{item.name}</Text>
-        <View style={styles.countyContainer}>
-          <Text style={styles.countyLabel}>Județ:</Text>
-          <Text style={styles.countyText}>{item.county}</Text>
+    <TouchableOpacity style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.nameContainer}>
+          <MaterialCommunityIcons name="hospital-building" size={24} color="#6B4EFF" />
+          <Text style={styles.hospitalName}>{item.name}</Text>
+        </View>
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{item.county}</Text>
         </View>
       </View>
+      
+      
     </TouchableOpacity>
   );
 
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8A2BE2" />
+        <ActivityIndicator size="large" color="#6B4EFF" />
       </View>
     );
   }
@@ -76,24 +82,28 @@ export default function FilterByCounty() {
         <Text style={styles.header}>Spitale de Psihiatrie</Text>
       </View>
       
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Caută după județ..."
-          value={searchQuery}
-          onChangeText={handleSearch}
-          placeholderTextColor="#666"
-        />
+      <View style={styles.searchSection}>
+        <View style={styles.searchContainer}>
+          <MaterialCommunityIcons name="map-search" size={20} color="#6B4EFF" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Caută după județ..."
+            value={searchQuery}
+            onChangeText={handleSearch}
+            placeholderTextColor="#999"
+          />
+        </View>
       </View>
 
       <FlatList
         data={filteredHospitals}
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderHospitalCard}
-        contentContainerStyle={styles.listContainer}
+        contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
+            <MaterialCommunityIcons name="alert-circle-outline" size={48} color="#6B4EFF" />
             <Text style={styles.emptyText}>Nu s-au găsit spitale în acest județ</Text>
           </View>
         )}
@@ -105,89 +115,121 @@ export default function FilterByCounty() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F5F5F7',
+    paddingTop: Platform.OS === 'android' ? 25 : 0,
   },
   headerContainer: {
-    backgroundColor: '#8A2BE2',
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: '#6B4EFF',
+    padding: 20,
+    paddingBottom: 24,
   },
   header: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#FFFFFF',
     textAlign: 'center',
   },
-  searchContainer: {
+  searchSection: {
     padding: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: '#E5E5E5',
   },
-  input: {
-    backgroundColor: '#F5F5F5',
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F7',
     borderRadius: 12,
-    padding: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
     fontSize: 16,
-    color: '#333',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    color: '#1A1A1A',
   },
-  listContainer: {
+  listContent: {
     padding: 16,
   },
-  hospitalCard: {
+  card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cardContent: {
+    borderRadius: 16,
+    marginBottom: 16,
     padding: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  nameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
   },
   hospitalName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
+    color: '#1A1A1A',
+    flex: 1,
   },
-  countyContainer: {
+  badge: {
+    backgroundColor: '#6B4EFF20',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  badgeText: {
+    color: '#6B4EFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  cardContent: {
+    marginTop: -10,
+    marginBottom: -10,
+    marginLeft: 280
+  },
+  infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  countyLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginRight: 4,
-  },
-  countyText: {
-    fontSize: 14,
-    color: '#8A2BE2',
-    fontWeight: '500',
+  infoText: {
+    fontSize: 15,
+    color: '#4A4A4A',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#F5F5F7',
   },
   emptyContainer: {
-    padding: 20,
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
   },
   emptyText: {
     fontSize: 16,
     color: '#666',
-    textAlign: 'center',
+    marginTop: 12,
   },
 });

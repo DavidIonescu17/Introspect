@@ -53,6 +53,7 @@ const JournalScreen = () => {
   const [entryImages, setEntryImages] = useState([]);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [selectedMood, setSelectedMood] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     // Update time every minute
@@ -157,60 +158,62 @@ const JournalScreen = () => {
       return;
     }
 
-    const newEntry = {
-      id: selectedEntry ? selectedEntry.id : Date.now(),
-      text: entryText,
-      images: entryImages,
-      date: new Date().toISOString(),
-      mood: selectedMood || 'neutral' 
-    };
-    let updatedEntries;
-
-  if (selectedEntry) {
-    // Dacă este o editare, înlocuiește intrarea existentă
-    updatedEntries = entries.map((entry) =>
-      entry.id === selectedEntry.id ? newEntry : entry
-    );
-  } else {
-    // Dacă este o nouă intrare, adaug-o la început
-    updatedEntries = [newEntry, ...entries];
-  }
-
     try {
-      // Save entries
-      await AsyncStorage.setItem('journalEntries', JSON.stringify(updatedEntries));
-      
-      // Update streak
-      const lastJournalDate = await AsyncStorage.getItem('lastJournalDate');
-      const today = new Date().toDateString();
-      let newStreak = 1;
+      let updatedEntries;
+      const newEntry = {
+        id: isEditing ? selectedEntry.id : Date.now(),
+        text: entryText,
+        images: entryImages,
+        date: isEditing ? selectedEntry.date : new Date().toISOString(),
+        mood: selectedMood || 'neutral'
+      };
 
-      if (lastJournalDate) {
-        const lastDate = new Date(lastJournalDate);
-        const dayDifference = (new Date(today) - lastDate) / (1000 * 60 * 60 * 24);
-        
-        if (dayDifference === 1) {
-          const storedStreak = await AsyncStorage.getItem('journalStreak');
-          newStreak = parseInt(storedStreak || '0') + 1;
+      if (isEditing) {
+        // Update existing entry
+        updatedEntries = entries.map(entry => 
+          entry.id === selectedEntry.id ? newEntry : entry
+        );
+      } else {
+        // Add new entry
+        updatedEntries = [newEntry, ...entries];
+
+        // Only update streak for new entries
+        const lastJournalDate = await AsyncStorage.getItem('lastJournalDate');
+        const today = new Date().toDateString();
+        let newStreak = 1;
+
+        if (lastJournalDate) {
+          const lastDate = new Date(lastJournalDate);
+          const dayDifference = (new Date(today) - lastDate) / (1000 * 60 * 60 * 24);
+
+          if (dayDifference === 1) {
+            const storedStreak = await AsyncStorage.getItem('journalStreak');
+            newStreak = parseInt(storedStreak || '0') + 1;
+          }
         }
+
+        await AsyncStorage.setItem('journalStreak', newStreak.toString());
+        await AsyncStorage.setItem('lastJournalDate', today);
+        setStreak(newStreak);
       }
 
-      await AsyncStorage.setItem('journalStreak', newStreak.toString());
-      await AsyncStorage.setItem('lastJournalDate', today);
+      // Save entries
+      await AsyncStorage.setItem('journalEntries', JSON.stringify(updatedEntries));
 
-      // Update state
+      // Reset all states
       setEntries(updatedEntries);
-      setStreak(newStreak);
       setEntryText('');
       setEntryImages([]);
       setSelectedMood(null);
       setSelectedEntry(null);
       setIsAddingEntry(false);
+      setIsEditing(false);  // Reset editing mode
     } catch (error) {
       console.error('Error saving entry', error);
     }
   };
 
+  
   const editEntry = (entry) => {
     setEntryText(entry.text);
     setEntryImages(entry.images);
@@ -269,7 +272,7 @@ const JournalScreen = () => {
           </Text>
         </View>
         <View style={styles.streakContainer}>
-          <Text style={styles.streakText}>Journaling Streak: {streak} days</Text>
+          <Text style={styles.streakText}>Journaling Streak: {streak + 1} days</Text>
         </View>
       </View>
 
@@ -356,9 +359,9 @@ const JournalScreen = () => {
                 })}
               </Text>
               <View style={styles.entryActions}>
-                <TouchableOpacity onPress={() => editEntry(entry)}>
+                {/* <TouchableOpacity onPress={() => editEntry(entry)}>
                   <Text style={styles.entryActionText}>Edit</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
                 <TouchableOpacity onPress={() => deleteEntry(entry.id)}>
                   <Text style={styles.entryActionText}>Delete</Text>
                 </TouchableOpacity>
@@ -628,7 +631,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   closeModalButton: {
-    backgroundColor: '#007bff',
+    backgroundColor: '#6B4EFF',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
