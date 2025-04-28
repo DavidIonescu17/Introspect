@@ -84,16 +84,10 @@ const ProfileScreen = () => {
         {moods.map((moodOption) => (
           <TouchableOpacity
             key={moodOption}
-            style={[
-              styles.moodButton,
-              mood === moodOption && styles.selectedMoodButton,
-            ]}
+            style={[styles.moodButton, mood === moodOption && styles.selectedMoodButton]}
             onPress={() => setMood(moodOption)}
           >
-            <Text style={[
-              styles.moodText,
-              mood === moodOption && styles.selectedMoodText
-            ]}>
+            <Text style={[styles.moodText, mood === moodOption && styles.selectedMoodText]}>
               {moodOption}
             </Text>
           </TouchableOpacity>
@@ -122,10 +116,7 @@ const ProfileScreen = () => {
         {themes.map((theme) => (
           <TouchableOpacity
             key={theme}
-            style={[
-              styles.themeButton,
-              selectedTheme === theme && styles.selectedThemeButton,
-            ]}
+            style={[styles.themeButton, selectedTheme === theme && styles.selectedThemeButton]}
             onPress={() => setSelectedTheme(theme)}
           >
             <Text style={styles.themeText}>{theme.charAt(0).toUpperCase() + theme.slice(1)}</Text>
@@ -147,14 +138,8 @@ const ProfileScreen = () => {
           <Text style={styles.notificationText}>
             {key.split(/(?=[A-Z])/).join(' ')}
           </Text>
-          <View style={[
-            styles.toggle,
-            value ? styles.toggleOn : styles.toggleOff,
-          ]}>
-            <View style={[
-              styles.toggleCircle,
-              value ? styles.toggleCircleOn : styles.toggleCircleOff,
-            ]} />
+          <View style={[styles.toggle, value ? styles.toggleOn : styles.toggleOff]}>
+            <View style={[styles.toggleCircle, value ? styles.toggleCircleOn : styles.toggleCircleOff]} />
           </View>
         </TouchableOpacity>
       ))}
@@ -172,10 +157,7 @@ const ProfileScreen = () => {
         {/* Profile Content */}
         <View style={styles.profileContent}>
           {/* Profile Photo */}
-          <Animated.View style={[
-            styles.photoContainer,
-            { transform: [{ scale: scaleAnim }] }
-          ]}>
+          <Animated.View style={[styles.photoContainer, { transform: [{ scale: scaleAnim }] }]}>
             <TouchableOpacity onPress={pickImage} style={styles.photoWrapper}>
               {image ? (
                 <Image source={{ uri: image }} style={styles.profilePhoto} />
@@ -212,20 +194,20 @@ const ProfileScreen = () => {
             )}
           </View>
 
-          {/* Current Mood
+          {/* Mood Section */}
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Current Mood</Text>
             {renderMoodSelector()}
           </View>
 
           {/* Progress Section */}
-          {/* {renderProgressSection()} */}
+          {renderProgressSection()}
 
           {/* Theme Selector */}
-          {/* {renderThemeSelector()} */}
+          {renderThemeSelector()}
 
           {/* Notification Settings */}
-          {/* {renderNotificationSettings()} */} 
+          {renderNotificationSettings()} 
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -427,9 +409,10 @@ const styles = StyleSheet.create({
   },
   toggle: {
     width: 50,
-    height: 28,
-    borderRadius: 14,
-    padding: 2,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    padding: 5,
   },
   toggleOn: {
     backgroundColor: '#6B4EFF',
@@ -438,16 +421,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
   },
   toggleCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
   },
   toggleCircleOn: {
-    transform: [{ translateX: 22 }],
+    backgroundColor: '#FFFFFF',
+    alignSelf: 'flex-end',
   },
   toggleCircleOff: {
-    transform: [{ translateX: 0 }],
+    backgroundColor: '#9CA3AF',
+    alignSelf: 'flex-start',
   },
 });
 

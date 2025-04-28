@@ -13,17 +13,21 @@ export default function TabOneScreen() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const handleDayPress = (day) => {
-    if (new Date(day.dateString) > new Date()) {
+    const now = new Date();
+    const todayDateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  
+    if (day.dateString > todayDateString) {
       Alert.alert(
-        'Error', // Title of the alert
-        'You cannot modify future dates', // Message in the alert
-        [{ text: 'OK' }] // Button configuration
+        'Error',
+        'You cannot modify future dates',
+        [{ text: 'OK' }]
       );
       return;
     }
+  
     router.push({
       pathname: '/specific-day',
-      params: { date: day.dateString }, // Trimite data selectată
+      params: { date: day.dateString },
     });
   };
   
