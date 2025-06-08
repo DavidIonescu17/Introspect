@@ -167,6 +167,7 @@ useEffect(() => {
         const data = doc.data();
         
         // Attempt to decrypt the conversation
+        
         let decryptedMessages: Message[] = [];
         try {
           if (data.encryptedData && encryptionKey) {
