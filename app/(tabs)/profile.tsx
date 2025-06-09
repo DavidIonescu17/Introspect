@@ -1,3 +1,4 @@
+import styles from "../styles/profile.styles"
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -8,8 +9,33 @@ import {
   Dimensions,
 } from 'react-native';
 import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
+import { 
+  getFirestore, 
+  collection, 
+  getDocs, 
+  query, 
+  orderBy, 
+  where 
+} from 'firebase/firestore';
+import CryptoJS from 'crypto-js';
+import { db } from '../../firebaseConfig'; // Adjust path as needed
+import { getAuth } from 'firebase/auth';
 
 const { width: screenWidth } = Dimensions.get('window');
+
+// Encryption key - should match the one from your journal component
+const ENCRYPTION_KEY = 'ezYxGHuBw5W5jKewAnJsmie52Ge14WCzk+mIW8IFD6gzl/ubFlHjGan+LbcJ2M1m';
+
+// Decryption function
+const decryptData = (encryptedData) => {
+  try {
+    const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
+    return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+  } catch (error) {
+    console.error('Decryption error:', error);
+    return null;
+  }
+};
 
 // Mock mood data - this would come from your Firebase entries
 const MOODS = {
@@ -26,7 +52,7 @@ const MOODS = {
   hopeful: { label: 'Hopeful', color: '#00cec9', value: 4, icon: '🤗' }
 };
 
-// Mock data for demonstration
+// Mock data for demonstration (fallback when no real data is available)
 const generateMockData = () => {
   const moods = Object.keys(MOODS);
   const data = [];
@@ -49,14 +75,137 @@ const generateMockData = () => {
 const MoodProfileDashboard = () => {
   const [moodData, setMoodData] = useState([]);
   const [currentMood, setCurrentMood] = useState('happy');
-  const [streak, setStreak] = useState(7);
+  const [streak, setStreak] = useState(0);
   const [selectedPeriod, setSelectedPeriod] = useState('30d');
-  const [totalEntries, setTotalEntries] = useState(127);
+  const [totalEntries, setTotalEntries] = useState(0);
   const [unlockedBadges, setUnlockedBadges] = useState(['first_entry', 'week_streak', 'mood_explorer']);
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const auth = getAuth();
+  const user = auth.currentUser;
+
+  // Load real entries from Firebase
+  const loadEntries = async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      const q = query(
+        collection(db, 'journal_entries'),
+        where('userId', '==', user.uid),
+        orderBy('createdAt', 'desc')
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const loadedEntries = [];
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const decryptedData = decryptData(data.encryptedContent);
+        if (decryptedData) {
+          loadedEntries.push({
+            id: doc.id,
+            ...decryptedData,
+            createdAt: data.createdAt
+          });
+        }
+      });
+      
+      setEntries(loadedEntries);
+      setTotalEntries(loadedEntries.length);
+      
+      // Convert entries to mood data format
+      const moodDataFromEntries = loadedEntries.map(entry => {
+        const entryDate = entry.createdAt?.seconds 
+          ? new Date(entry.createdAt.seconds * 1000) 
+          : new Date(entry.date);
+        
+        return {
+          date: entryDate.toISOString().split('T')[0],
+          mood: entry.mood,
+          value: MOODS[entry.mood]?.value || 3,
+          dayName: entryDate.toLocaleDateString('en-US', { weekday: 'short' }),
+          createdAt: entryDate
+        };
+      }).sort((a, b) => new Date(a.date) - new Date(b.date));
+      
+      setMoodData(moodDataFromEntries.length > 0 ? moodDataFromEntries : generateMockData());
+      
+      // Set current mood to the most recent entry
+      if (loadedEntries.length > 0) {
+        setCurrentMood(loadedEntries[0].mood);
+      }
+      
+    } catch (error) {
+      console.error('Error loading entries:', error);
+      // Fallback to mock data if there's an error
+      setMoodData(generateMockData());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calculate streak from real data
+  const calculateStreak = async () => {
+    if (!user) return;
+    
+    try {
+      const today = new Date();
+      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      
+      const q = query(
+        collection(db, 'journal_entries'),
+        where('userId', '==', user.uid),
+        orderBy('createdAt', 'desc')
+      );
+      
+      const querySnapshot = await getDocs(q);
+      let currentStreak = 0;
+      let checkDate = new Date(startOfToday);
+      
+      const entriesByDate = new Map();
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const entryDate = data.createdAt?.seconds 
+          ? new Date(data.createdAt.seconds * 1000)
+          : new Date();
+        const dateKey = entryDate.toDateString();
+        if (!entriesByDate.has(dateKey)) {
+          entriesByDate.set(dateKey, true);
+        }
+      });
+      
+      // Check consecutive days starting from today
+      while (true) {
+        const dateKey = checkDate.toDateString();
+        if (entriesByDate.has(dateKey)) {
+          currentStreak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else if (checkDate.toDateString() === startOfToday.toDateString()) {
+          // No entry today, but check yesterday
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+      
+      setStreak(currentStreak);
+    } catch (error) {
+      console.error('Error calculating streak:', error);
+      setStreak(0);
+    }
+  };
 
   useEffect(() => {
-    setMoodData(generateMockData());
-  }, []);
+    if (user) {
+      loadEntries();
+      calculateStreak();
+    } else {
+      // If no user, use mock data
+      setMoodData(generateMockData());
+    }
+  }, [user]);
 
   // Calculate mood statistics
   const getMoodStats = () => {
@@ -64,14 +213,16 @@ const MoodProfileDashboard = () => {
     Object.keys(MOODS).forEach(mood => moodCounts[mood] = 0);
     
     moodData.forEach(entry => {
-      moodCounts[entry.mood]++;
+      if (moodCounts.hasOwnProperty(entry.mood)) {
+        moodCounts[entry.mood]++;
+      }
     });
 
     return Object.entries(moodCounts)
       .map(([mood, count]) => ({
         mood,
         count,
-        percentage: ((count / moodData.length) * 100).toFixed(1),
+        percentage: moodData.length > 0 ? ((count / moodData.length) * 100).toFixed(1) : 0,
         ...MOODS[mood]
       }))
       .sort((a, b) => b.count - a.count);
@@ -79,9 +230,36 @@ const MoodProfileDashboard = () => {
 
   const getAverageMood = () => {
     if (moodData.length === 0) return 0;
-    const sum = moodData.reduce((acc, entry) => acc + MOODS[entry.mood].value, 0);
+    const sum = moodData.reduce((acc, entry) => {
+      const moodValue = MOODS[entry.mood]?.value || 3;
+      return acc + moodValue;
+    }, 0);
     return (sum / moodData.length).toFixed(1);
   };
+
+  // Update badges based on real data
+  const updateBadges = () => {
+    const newBadges = [];
+    
+    if (totalEntries > 0) newBadges.push('first_entry');
+    if (streak >= 7) newBadges.push('week_streak');
+    if (getMoodStats().filter(mood => mood.count > 0).length >= 5) newBadges.push('mood_explorer');
+    if (totalEntries >= 30) newBadges.push('month_warrior');
+    if (totalEntries >= 100) newBadges.push('reflection_guru');
+    
+    // Check for positivity (70% positive moods)
+    const positiveMoods = ['veryHappy', 'happy', 'content', 'hopeful'];
+    const positiveCount = moodData.filter(entry => positiveMoods.includes(entry.mood)).length;
+    if (moodData.length > 0 && (positiveCount / moodData.length) >= 0.7) {
+      newBadges.push('positivity_champion');
+    }
+    
+    setUnlockedBadges(newBadges);
+  };
+
+  useEffect(() => {
+    updateBadges();
+  }, [totalEntries, streak, moodData]);
 
   const badges = [
     { id: 'first_entry', name: 'First Steps', description: 'Created your first journal entry', icon: '🌱', color: '#4CAF50' },
@@ -94,7 +272,7 @@ const MoodProfileDashboard = () => {
     { id: 'mindful_moments', name: 'Mindful Moments', description: 'Journaled for 3 months', icon: '🧘', color: '#00BCD4' }
   ];
 
-  const moodTrendData = moodData.slice(-7).map(entry => MOODS[entry.mood].value);
+  const moodTrendData = moodData.slice(-7).map(entry => MOODS[entry.mood]?.value || 3);
   const moodTrendLabels = moodData.slice(-7).map(entry => entry.dayName);
 
   const moodDistribution = getMoodStats().slice(0, 5);
@@ -164,6 +342,14 @@ const MoodProfileDashboard = () => {
     </View>
   );
 
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text>Loading your mood profile...</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container}>
       {/* Header with Current Mood */}
@@ -174,17 +360,17 @@ const MoodProfileDashboard = () => {
             <Text style={styles.subtitle}>Track your emotional journey</Text>
           </View>
           <View style={styles.currentMoodContainer}>
-            <Text style={styles.currentMoodIcon}>{MOODS[currentMood].icon}</Text>
+            <Text style={styles.currentMoodIcon}>{MOODS[currentMood]?.icon || '😊'}</Text>
             <View>
               <Text style={styles.currentMoodLabel}>Currently</Text>
-              <Text style={[styles.currentMoodText, { color: MOODS[currentMood].color }]}>
-                {MOODS[currentMood].label}
+              <Text style={[styles.currentMoodText, { color: MOODS[currentMood]?.color || '#4CAF50' }]}>
+                {MOODS[currentMood]?.label || 'Happy'}
               </Text>
             </View>
           </View>
         </View>
 
-        {/* Quick Stats */}
+        {/* Quick Stats - Now using real data */}
         <View style={styles.statsContainer}>
           <StatCard icon="🔥" value={streak} label="Day Streak" gradient="#8B5CF6" />
           <StatCard icon="📅" value={totalEntries} label="Total Entries" gradient="#3B82F6" />
@@ -221,7 +407,7 @@ const MoodProfileDashboard = () => {
           <LineChart
             data={{
               labels: moodTrendLabels,
-              datasets: [{ data: moodTrendData }]
+              datasets: [{ data: moodTrendData.length > 0 ? moodTrendData : [3] }]
             }}
             width={screenWidth - 60}
             height={220}
@@ -266,12 +452,12 @@ const MoodProfileDashboard = () => {
         <Text style={styles.chartTitle}>Today's Mood Meter</Text>
         <View style={styles.moodMeterContainer}>
           <View style={styles.moodMeterCenter}>
-            <Text style={styles.moodMeterIcon}>{MOODS[currentMood].icon}</Text>
+            <Text style={styles.moodMeterIcon}>{MOODS[currentMood]?.icon || '😊'}</Text>
             <Text style={styles.moodMeterPercentage}>
-              {((MOODS[currentMood].value / 5) * 100).toFixed(0)}%
+              {(((MOODS[currentMood]?.value || 4) / 5) * 100).toFixed(0)}%
             </Text>
           </View>
-          <Text style={styles.moodMeterLabel}>{MOODS[currentMood].label}</Text>
+          <Text style={styles.moodMeterLabel}>{MOODS[currentMood]?.label || 'Happy'}</Text>
           <View style={styles.moodButtonsContainer}>
             {Object.entries(MOODS).slice(0, 5).map(([key, mood]) => (
               <MoodButton
@@ -313,20 +499,20 @@ const MoodProfileDashboard = () => {
           <View style={[styles.comparisonCard, { backgroundColor: '#DBEAFE' }]}>
             <Text style={styles.comparisonIcon}>🧠</Text>
             <Text style={styles.comparisonTitle}>This Week</Text>
-            <Text style={[styles.comparisonValue, { color: '#3B82F6' }]}>3.2</Text>
+            <Text style={[styles.comparisonValue, { color: '#3B82F6' }]}>{getAverageMood()}</Text>
             <Text style={styles.comparisonSubtitle}>Average Mood</Text>
           </View>
           <View style={[styles.comparisonCard, { backgroundColor: '#D1FAE5' }]}>
             <Text style={styles.comparisonIcon}>❤️</Text>
-            <Text style={styles.comparisonTitle}>Last Week</Text>
-            <Text style={[styles.comparisonValue, { color: '#10B981' }]}>2.8</Text>
-            <Text style={styles.comparisonSubtitle}>Average Mood</Text>
+            <Text style={styles.comparisonTitle}>Total</Text>
+            <Text style={[styles.comparisonValue, { color: '#10B981' }]}>{totalEntries}</Text>
+            <Text style={styles.comparisonSubtitle}>Journal Entries</Text>
           </View>
           <View style={[styles.comparisonCard, { backgroundColor: '#EDE9FE' }]}>
             <Text style={styles.comparisonIcon}>📈</Text>
-            <Text style={styles.comparisonTitle}>Improvement</Text>
-            <Text style={[styles.comparisonValue, { color: '#8B5CF6' }]}>+14%</Text>
-            <Text style={styles.comparisonSubtitle}>Better than last week</Text>
+            <Text style={styles.comparisonTitle}>Streak</Text>
+            <Text style={[styles.comparisonValue, { color: '#8B5CF6' }]}>{streak}</Text>
+            <Text style={styles.comparisonSubtitle}>Days in a row</Text>
           </View>
         </View>
       </View>
@@ -339,15 +525,21 @@ const MoodProfileDashboard = () => {
         </View>
         <View style={styles.insightsContainer}>
           <View style={styles.insightItem}>
-            <Text style={styles.insightTitle}>🌟 Mood Pattern</Text>
+            <Text style={styles.insightTitle}>🌟 Journaling Progress</Text>
             <Text style={styles.insightText}>
-              You tend to feel happiest on weekends and most productive on Tuesdays!
+              {streak > 0 
+                ? `Amazing! You're on a ${streak}-day streak. Keep up the great work!`
+                : "Start your journaling journey today and build a healthy habit!"
+              }
             </Text>
           </View>
           <View style={styles.insightItem}>
-            <Text style={styles.insightTitle}>📈 Progress</Text>
+            <Text style={styles.insightTitle}>📈 Mood Tracking</Text>
             <Text style={styles.insightText}>
-              Your mood has improved by 14% compared to last week. Keep it up!
+              {totalEntries > 0 
+                ? `You've recorded ${totalEntries} entries with an average mood of ${getAverageMood()}/5.0`
+                : "Begin tracking your moods to see patterns and insights over time!"
+              }
             </Text>
           </View>
         </View>
@@ -355,348 +547,5 @@ const MoodProfileDashboard = () => {
     </ScrollView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    padding: 16,
-  },
-  headerCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-  },
-  currentMoodContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  currentMoodIcon: {
-    fontSize: 32,
-    marginRight: 12,
-  },
-  currentMoodLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  currentMoodText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statCard: {
-    flex: 1,
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    marginHorizontal: 4,
-  },
-  statIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.9,
-  },
-  chartCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  chartHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  chartTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1F2937',
-  },
-  periodSelector: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 8,
-    padding: 4,
-  },
-  periodButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  periodButtonSelected: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  periodButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
-  },
-  periodButtonTextSelected: {
-    color: '#8B5CF6',
-  },
-  chart: {
-    borderRadius: 16,
-  },
-  moodDistributionContainer: {
-    marginTop: 16,
-  },
-  moodDistributionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  moodDistributionIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  moodDistributionContent: {
-    flex: 1,
-  },
-  moodDistributionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  moodDistributionLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  moodDistributionPercentage: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  progressBarContainer: {
-    height: 8,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 4,
-  },
-  progressBar: {
-    height: 8,
-    borderRadius: 4,
-  },
-  moodMeterContainer: {
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  moodMeterCenter: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  moodMeterIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  moodMeterPercentage: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
-  },
-  moodMeterLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  moodButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  moodButton: {
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
-    marginHorizontal: 4,
-  },
-  moodButtonSelected: {
-    backgroundColor: '#EDE9FE',
-    transform: [{ scale: 1.1 }],
-  },
-  moodButtonIcon: {
-    fontSize: 24,
-  },
-  badgesHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  badgesHeaderIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  badgesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  badgeCard: {
-    width: '48%',
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 2,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  badgeUnlocked: {
-    borderColor: '#C7D2FE',
-    backgroundColor: '#F3F4F6',
-  },
-  badgeLocked: {
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
-    opacity: 0.6,
-  },
-  badgeIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  badgeIconLocked: {
-    opacity: 0.5,
-  },
-  badgeName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  badgeDescription: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  badgeTextLocked: {
-    color: '#9CA3AF',
-  },
-  badgeStar: {
-    fontSize: 16,
-    marginTop: 8,
-  },
-  comparisonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 16,
-  },
-  comparisonCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginHorizontal: 4,
-  },
-  comparisonIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  comparisonTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  comparisonValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  comparisonSubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  insightsCard: {
-    backgroundColor: '#8B5CF6',
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 24,
-  },
-  insightsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  insightsHeaderIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  insightsTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  insightsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  insightItem: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 4,
-  },
-  insightTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  insightText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.9,
-  },
-});
 
 export default MoodProfileDashboard;
