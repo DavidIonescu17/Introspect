@@ -100,12 +100,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sectionTitle: {
+    textAlign: 'center',
     fontSize: 24,
     fontWeight: '700',
     color: '#2d3436',
     marginBottom: 5,
   },
   sectionSubtitle: {
+    textAlign: 'center',
     fontSize: 16,
     color: '#636e72',
   },
@@ -120,8 +122,6 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   calendar: {
-    
-    
   },
   legendIcon: {
     marginRight: 3, 
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   },
    dayWrapper: {
     width: 40, // Reduced width
-    height: 55, // Reduced height, balance between number and icons
+    height: 44, // Reduced height, balance between number and icons
     justifyContent: 'flex-start',
     alignItems: 'center',
     borderRadius: 8,
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   dayNumber: {
     fontSize: 15, // Slightly smaller font size for day number
     color: '#2d3436',
-    marginBottom: 2, // Reduced space between number and mood icons
+    marginBottom: 0, // Reduced space between number and mood icons
   },
   selectedDayNumber: {
     color: 'white',

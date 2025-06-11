@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { router } from 'expo-router'; 
+import { router } from 'expo-router';
 import {
   View,
   Text,
@@ -30,6 +30,9 @@ import styles from "../styles/profile.styles";
 // Import MaterialCommunityIcons for custom mood icons
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
+// Import the new MasterHabitsManager component
+import MasterHabitsManager from '../../components/MasterHabitsManager';
+
 const { width: screenWidth } = Dimensions.get('window');
 
 // Encryption key - should match the one from your journal component
@@ -41,12 +44,12 @@ const decryptData = (encryptedData) => {
     const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
     const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
     if (!decryptedText) {
-      console.warn('Decryption resulted in empty string, returning null.');
+      
       return null;
     }
     return JSON.parse(decryptedText);
   } catch (error) {
-    console.error('Decryption error:', error);
+    
     return null;
   }
 };
@@ -88,7 +91,7 @@ const ALL_BADGES = [
   { id: 'eternal_scribe', name: 'Eternal Scribe', description: '1000-day journaling streak', icon: '📜', color: '#8E24AA' },
 
   { id: 'mood_explorer', name: 'Emotional Range', description: 'Logged 5 different moods', icon: '🎭', color: '#9C27B0' },
-  { id: 'emotional_spectrum', name: 'Full Spectrum', description: 'Logged all available moods', icon: '�', color: '#3F51B5' },
+  { id: 'emotional_spectrum', name: 'Full Spectrum', description: 'Logged all available moods', icon: '🌈', color: '#3F51B5' }, // Changed icon from '�'
   { id: 'mood_master', name: 'Mood Master', description: 'Logged each mood at least 10 times', icon: '🎨', color: '#795548' },
 
   { id: 'positivity_champion', name: 'Positivity Champion', description: 'Achieved 70%+ positive moods overall', icon: '☀️', color: '#FFD93D' },
@@ -117,7 +120,14 @@ const ALL_BADGES = [
   { id: 'reflection_sage', name: 'Reflection Sage', description: 'Journaled for a full year', icon: '🧙‍♂️', color: '#795548' },
 
   { id: 'mindfulness_master', name: 'Mindfulness Master', description: 'Unlocked all other achievements', icon: '🌟', color: '#FF6B6B' },
+  // Added badges for habits
+  { id: 'first_habit_completed', name: 'First Habit Done', description: 'Completed your first daily habit', icon: '✅', color: '#4CAF50' },
+  { id: 'seven_habits_day', name: 'Habit Champion', description: 'Completed 7 habits in one day', icon: '✨', color: '#00BCD4' },
+  { id: 'habit_streak_7', name: 'Habit Streaker', description: 'Completed at least one habit for 7 consecutive days', icon: '🔥', color: '#FF9800' },
+  { id: 'master_habits_set', name: 'Habit Organizer', description: 'Set up your master habit list', icon: '📋', color: '#9C27B0' },
+  { id: 'custom_habit_creator', name: 'Creative Habit', description: 'Created your first custom habit', icon: '💡', color: '#FFD700' },
 ];
+
 
 // Consistent icon size for moods (MaterialCommunityIcons now)
 const MOOD_ICON_SIZE = 24;
@@ -205,6 +215,7 @@ const MoodProfileDashboard = ({ navigation }) => {
   const [userName, setUserName] = useState('');
   const [userAvatar, setUserAvatar] = useState('');
   const [showBadgesScreen, setShowBadgesScreen] = useState(false);
+  const [showMasterHabitsModal, setShowMasterHabitsModal] = useState(false); // New state for habits modal
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [chartViewMode, setChartViewMode] = useState('pieChart'); // 'pieChart' or 'breakdown'
 
@@ -229,11 +240,9 @@ const MoodProfileDashboard = ({ navigation }) => {
         setUserAvatar(defaultAvatar);
         if (userId) {
             await setDoc(userDocRef, { name: defaultName, avatar: defaultAvatar, userId }, { merge: true });
-            console.log('Initial user profile created.');
         }
       }
     } catch (error) {
-      console.error('Error loading user profile:', error);
       setUserName('Guest User');
       setUserAvatar('👤');
     }
@@ -242,7 +251,6 @@ const MoodProfileDashboard = ({ navigation }) => {
   // Function to save user profile to Firestore
   const saveUserProfile = useCallback(async (name, avatar) => {
     if (!userId || isSavingProfile) {
-      console.log('Save profile skipped: No user ID or already saving.');
       return;
     }
     setIsSavingProfile(true);
@@ -251,9 +259,7 @@ const MoodProfileDashboard = ({ navigation }) => {
       await setDoc(userDocRef, { name, avatar, userId }, { merge: true });
       setUserName(name);
       setUserAvatar(avatar);
-      console.log('User profile saved successfully!');
     } catch (error) {
-      console.error('Error saving user profile:', error);
     } finally {
       setIsSavingProfile(false);
     }
@@ -262,7 +268,7 @@ const MoodProfileDashboard = ({ navigation }) => {
   // Load real entries from Firebase and calculate streak
   const loadEntriesAndCalculateStats = useCallback(async () => {
     if (!userId) {
-      setMoodData(generateMockData());
+      setMoodData(generateMockData()); // Assuming generateMockData exists for unauthenticated users
       setLoading(false);
       return;
     }
@@ -335,7 +341,6 @@ const MoodProfileDashboard = ({ navigation }) => {
       setStreak(currentStreak);
 
     } catch (error) {
-      console.error('Error loading entries or calculating stats:', error);
       setMoodData(generateMockData());
       setStreak(0);
     } finally {
@@ -377,7 +382,7 @@ const MoodProfileDashboard = ({ navigation }) => {
       .sort((a, b) => b.count - a.count);
   }, [getMonthlyData]);
 
-  const moodDistributionData = getMoodStatsForMonth(); // This line now comes after getMoodStatsForMonth is defined
+  const moodDistributionData = getMoodStatsForMonth();
 
 
   // Initial data load and profile load effect
@@ -386,7 +391,7 @@ const MoodProfileDashboard = ({ navigation }) => {
       loadUserProfile();
       loadEntriesAndCalculateStats();
     } else {
-      setMoodData(generateMockData());
+      setMoodData(generateMockData()); // Assuming generateMockData is defined elsewhere
       setLoading(false);
       setUserName('Guest User');
       setUserAvatar('👤');
@@ -414,7 +419,7 @@ const MoodProfileDashboard = ({ navigation }) => {
 
   // Get most frequent mood across ALL entries (for general insights)
   const getMostFrequentMoodGlobal = useCallback(() => {
-    if (totalEntries === 0) return { label: 'N/A', icon: '❓', color: '#92beb5' };
+    if (totalEntries === 0) return { label: 'N/A', icon: 'help-circle', color: '#92beb5' }; // Changed icon
     const moodCounts = {};
     moodData.forEach(entry => {
       if (moodCounts.hasOwnProperty(entry.mood)) {
@@ -422,13 +427,13 @@ const MoodProfileDashboard = ({ navigation }) => {
       }
     });
     const sortedMoods = Object.entries(moodCounts).sort(([, countA], [, countB]) => countB - countA);
-    if (sortedMoods.length === 0 || sortedMoods[0][1] === 0) return { label: 'N/A', icon: '❓', color: '#92beb5' };
+    if (sortedMoods.length === 0 || sortedMoods[0][1] === 0) return { label: 'N/A', icon: 'help-circle', color: '#92beb5' }; // Changed icon
     return MOODS[sortedMoods[0][0]];
   }, [moodData, totalEntries]);
 
   // Get least frequent mood (among those logged) across ALL entries (for general insights)
   const getLeastFrequentMoodGlobal = useCallback(() => {
-    if (totalEntries === 0) return { label: 'N/A', icon: '❓', color: '#92beb5' };
+    if (totalEntries === 0) return { label: 'N/A', icon: 'help-circle', color: '#92beb5' }; // Changed icon
     const moodCounts = {};
     moodData.forEach(entry => {
       if (moodCounts.hasOwnProperty(entry.mood)) {
@@ -437,14 +442,79 @@ const MoodProfileDashboard = ({ navigation }) => {
     });
     const loggedMoods = Object.entries(moodCounts).filter(([, count]) => count > 0);
     const sortedMoods = loggedMoods.sort(([, countA], [, countB]) => countA - countB);
-    if (sortedMoods.length === 0) return { label: 'N/A', icon: '❓', color: '#92beb5' };
+    if (sortedMoods.length === 0) return { label: 'N/A', icon: 'help-circle', color: '#92beb5' }; // Changed icon
     return MOODS[sortedMoods[0][0]];
   }, [moodData, totalEntries]);
 
+  // Fetch habit completion data for badges
+  const fetchHabitCompletionData = useCallback(async () => {
+    if (!userId) return { totalCompletedHabits: 0, completedHabitsInOneDay: 0, habitStreak: 0 };
+    try {
+      const q = query(collection(db, 'daily_habits'), where('userId', '==', userId), orderBy('date', 'asc'));
+      const querySnapshot = await getDocs(q);
+      let totalCompletedHabits = 0;
+      let maxCompletedInOneDay = 0;
+      let currentHabitStreak = 0;
+      let lastCompletedDate: Date | null = null;
+
+      const dailyRecords: { date: string, completedCount: number }[] = [];
+
+      querySnapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        const habits = data.habits || [];
+        const completedCount = habits.filter((h: any) => h.completed).length;
+        totalCompletedHabits += completedCount;
+        if (completedCount > maxCompletedInOneDay) {
+          maxCompletedInOneDay = completedCount;
+        }
+        dailyRecords.push({ date: data.date, completedCount: completedCount });
+      });
+
+      // Calculate habit streak (at least one habit completed per day)
+      if (dailyRecords.length > 0) {
+        dailyRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        let streakDays = new Set();
+        dailyRecords.forEach(record => {
+            if (record.completedCount > 0) {
+                const d = new Date(record.date);
+                d.setHours(0,0,0,0);
+                streakDays.add(d.getTime());
+            }
+        });
+
+        let checkDate = new Date(today);
+        // Check if today has at least one completed habit
+        if (streakDays.has(checkDate.getTime())) {
+            currentHabitStreak++;
+            checkDate.setDate(checkDate.getDate() - 1);
+        } else {
+            // If not today, check yesterday
+            checkDate.setDate(checkDate.getDate() - 1);
+        }
+
+        while (streakDays.has(checkDate.getTime())) {
+            currentHabitStreak++;
+            checkDate.setDate(checkDate.getDate() - 1);
+        }
+      }
+
+      return { totalCompletedHabits, maxCompletedInOneDay, habitStreak: currentHabitStreak };
+
+    } catch (error) {
+      return { totalCompletedHabits: 0, completedHabitsInOneDay: 0, habitStreak: 0 };
+    }
+  }, [userId]);
+
+
   // Enhanced badge calculation logic
-  const updateBadges = useCallback(() => {
+  const updateBadges = useCallback(async () => {
     const newBadges = [];
 
+    // Journaling badges
     // Entry count badges
     if (totalEntries > 0) newBadges.push('first_entry');
     if (totalEntries >= 7) newBadges.push('consistent_logger');
@@ -453,7 +523,7 @@ const MoodProfileDashboard = ({ navigation }) => {
     if (totalEntries >= 200) newBadges.push('reflection_guru');
     if (totalEntries >= 365) newBadges.push('journal_master');
     if (totalEntries >= 1000) newBadges.push('thousand_thoughts');
-    if (totalEntries >= 5000) newBadges.push('legend_status');
+    // if (totalEntries >= 5000) newBadges.push('legend_status'); // This badge is not in ALL_BADGES array
 
     // Streak badges
     if (streak >= 3) newBadges.push('three_day_streak');
@@ -563,7 +633,7 @@ const MoodProfileDashboard = ({ navigation }) => {
           break;
         }
         if (consistentCalmStreak >= 3) {
-          newBadges.push('consistent_calm');
+          newBadges.push('consistent_calm'); // This badge was not in ALL_BADGES array
           break;
         }
       }
@@ -571,7 +641,7 @@ const MoodProfileDashboard = ({ navigation }) => {
 
     // Reflection Pro: Wrote entries on 5 different days of the week
     const distinctDaysOfWeek = new Set(moodData.map(entry => new Date(entry.createdAt).getDay())).size;
-    if (distinctDaysOfWeek >= 5) newBadges.push('reflection_pro');
+    if (distinctDaysOfWeek >= 5) newBadges.push('reflection_pro'); // This badge was not in ALL_BADGES array
 
     // Adaptive Spirit: Logged 7 different moods in one week (any 7 day rolling window)
     const sortedMoodDataForAdaptive = [...moodData].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
@@ -587,10 +657,31 @@ const MoodProfileDashboard = ({ navigation }) => {
         }
       }
       if (moodsInWindow.size >= 7) {
-        newBadges.push('adaptive_spirit');
+        newBadges.push('adaptive_spirit'); // This badge was not in ALL_BADGES array
         break;
       }
     }
+
+    // Habit-related badges (new)
+    const habitStats = await fetchHabitCompletionData();
+
+    if (habitStats.totalCompletedHabits > 0) newBadges.push('first_habit_completed');
+    if (habitStats.maxCompletedInOneDay >= 7) newBadges.push('seven_habits_day');
+    if (habitStats.habitStreak >= 7) newBadges.push('habit_streak_7');
+
+    // Check if master habits list has been set (i.e., not empty)
+    if (user) {
+        const masterHabitsSnap = await getDocs(query(collection(db, 'user_master_habits'), where('userId', '==', user.uid)));
+        if (!masterHabitsSnap.empty && masterHabitsSnap.docs[0].data().habitIds?.length > 0) {
+            newBadges.push('master_habits_set');
+        }
+        // Check if user has created any custom habits
+        const customHabitsPoolSnap = await getDocs(query(collection(db, 'user_custom_habits_pool'), where('userId', '==', user.uid)));
+        if (!customHabitsPoolSnap.empty && customHabitsPoolSnap.docs[0].data().customHabits?.length > 0) {
+            newBadges.push('custom_habit_creator');
+        }
+    }
+
 
     // Mindfulness Master (All other achievements unlocked)
     const nonMasterBadges = ALL_BADGES.filter(badge => badge.id !== 'mindfulness_master');
@@ -600,13 +691,15 @@ const MoodProfileDashboard = ({ navigation }) => {
     }
 
     setUnlockedBadges(Array.from(new Set(newBadges)));
-  }, [totalEntries, streak, moodData]);
+  }, [totalEntries, streak, moodData, userId, fetchHabitCompletionData]); // Added fetchHabitCompletionData to dependencies
+
 
   useEffect(() => {
-    if (!loading) {
+    if (!loading && userId) { // Ensure user is loaded before updating badges
       updateBadges();
     }
-  }, [totalEntries, streak, moodData, loading, updateBadges]);
+  }, [totalEntries, streak, moodData, loading, userId, updateBadges]);
+
 
   // Enhanced daily insights
   const getDailyInsights = useCallback(() => {
@@ -614,7 +707,9 @@ const MoodProfileDashboard = ({ navigation }) => {
     const monthlyData = getMonthlyData();
     const currentMonthName = currentDisplayDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
-    const distinctMoodsCount = new Set(moodData.map(entry => entry.mood)).size;
+    // Ensure moodData is not empty before attempting to create a Set from it.
+    const distinctMoodsCount = moodData.length > 0 ? new Set(moodData.map(entry => entry.mood)).size : 0;
+
 
     // Streak insights
     if (streak > 0) {
@@ -648,7 +743,7 @@ const MoodProfileDashboard = ({ navigation }) => {
 
     // Monthly insights
     if (monthlyData.length > 0) {
-      const avgMoodValue = monthlyData.reduce((sum, entry) => sum + entry.value, 0) / monthlyData.length;
+      const avgMoodValue = monthlyData.reduce((sum, entry) => sum + MOODS[entry.mood].value, 0) / monthlyData.length;
       let moodTrendLabel = 'neutral';
       if (avgMoodValue >= 3.5) moodTrendLabel = 'positive';
       else if (avgMoodValue <= 1.5) moodTrendLabel = 'challenging';
@@ -722,8 +817,8 @@ const MoodProfileDashboard = ({ navigation }) => {
       const firstHalf = monthlyData.slice(0, Math.floor(monthlyData.length / 2));
       const secondHalf = monthlyData.slice(Math.floor(monthlyData.length / 2));
 
-      const firstHalfAvg = firstHalf.reduce((sum, entry) => sum + entry.value, 0) / firstHalf.length;
-      const secondHalfAvg = secondHalf.reduce((sum, entry) => sum + entry.value, 0) / secondHalf.length;
+      const firstHalfAvg = firstHalf.reduce((sum, entry) => sum + MOODS[entry.mood].value, 0) / firstHalf.length;
+      const secondHalfAvg = secondHalf.reduce((sum, entry) => sum + MOODS[entry.mood].value, 0) / secondHalf.length;
 
       let trendInsight = '';
       if (secondHalfAvg > firstHalfAvg + 0.2) {
@@ -770,12 +865,12 @@ const MoodProfileDashboard = ({ navigation }) => {
     return insights;
   }, [totalEntries, streak, moodData, currentDisplayDate, getMonthlyData, unlockedBadges]);
 
-  const dailyInsights = getDailyInsights(); // This line now comes after getDailyInsights is defined.
+  const dailyInsights = getDailyInsights();
 
 
   const pieChartData = moodDistributionData.map(mood => ({
     name: mood.label, // Use full label for legend
-    population: parseInt(mood.count), // Count of entries
+    population: parseInt(mood.count as string), // Count of entries
     color: mood.color,
     legendFontColor: '#7F7F7F', // Default legend font color (won't be shown in custom legend)
     legendFontSize: 15, // Default legend font size (won't be shown in custom legend)
@@ -862,7 +957,17 @@ const MoodProfileDashboard = ({ navigation }) => {
             ))}
           </ScrollView>
         </View>
+
+        {/* Edit Habits Button */}
+        <TouchableOpacity
+          style={styles.editHabitsButton}
+          onPress={() => setShowMasterHabitsModal(true)}
+        >
+          <MaterialCommunityIcons name="playlist-edit" size={20} color="#fff" />
+          <Text style={styles.editHabitsButtonText}>Edit Habits</Text>
+        </TouchableOpacity>
       </View>
+
 
       {/* Header (without Current Mood) */}
       <View style={styles.headerCard}>
@@ -997,7 +1102,6 @@ const MoodProfileDashboard = ({ navigation }) => {
         </View>
         <TouchableOpacity
            style={styles.viewAllInsightsButton}
-          onPress={() => navigation.navigate('Insights')} // OLD: navigation.navigate
           onPress={() => router.push({ // NEW: Use router.push
             pathname: '/insights', // Assuming your InsightsScreen is at app/(tabs)/insights.tsx
           })}
@@ -1005,8 +1109,17 @@ const MoodProfileDashboard = ({ navigation }) => {
            <Text style={styles.viewAllInsightsButtonText}>View All Trends & Insights →</Text>
          </TouchableOpacity>
       </View>
+
+      {/* Master Habits Modal */}
+      {showMasterHabitsModal && (
+        <MasterHabitsManager
+          user={user}
+          onClose={() => setShowMasterHabitsModal(false)}
+        />
+      )}
     </ScrollView>
   );
 };
 
 export default MoodProfileDashboard;
+

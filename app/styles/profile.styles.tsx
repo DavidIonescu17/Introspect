@@ -496,6 +496,27 @@ const styles = StyleSheet.create({
       marginTop: 10, // Space above the text
       fontSize: 16,
   },
+  editHabitsButton: {
+  backgroundColor: '#8B5CF6', // A vibrant purple
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingVertical: 12,
+  paddingHorizontal: 25,
+  borderRadius: 15, // Rounded corners
+  marginTop: 20,
+  shadowColor: '#6B4EFF', // Shadow matching the button color
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 8,
+  elevation: 6, // Android shadow
+},
+editHabitsButtonText: {
+  color: '#fff', // White text for contrast
+  fontSize: 16,
+  fontWeight: '700', // Bolder text
+  marginLeft: 10, // Space between icon and text
+},
 });
 
 export default styles;
