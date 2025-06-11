@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { router } from 'expo-router'; 
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
-  StyleSheet,
   Dimensions,
   TextInput,
-  Modal, // Import Modal for the badges screen
+  Modal,
 } from 'react-native';
-import { BarChart } from 'react-native-chart-kit';
+import { PieChart } from 'react-native-chart-kit';
 import {
   getFirestore,
   collection,
@@ -20,12 +20,15 @@ import {
   doc,
   setDoc,
   getDoc,
-  Timestamp, // Import Timestamp for Firebase dates
+  Timestamp,
 } from 'firebase/firestore';
 import CryptoJS from 'crypto-js';
-import { db } from '../../firebaseConfig'; // Adjust path as needed
+import { db } from '../../firebaseConfig';
 import { getAuth } from 'firebase/auth';
-import styles from "../styles/profile.styles"; // Import styles here
+import styles from "../styles/profile.styles";
+
+// Import MaterialCommunityIcons for custom mood icons
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -48,41 +51,21 @@ const decryptData = (encryptedData) => {
   }
 };
 
-// Mood definitions with values 0-5 (for chart plotting)
+// Mood definitions with values and MaterialCommunityIcons
 const MOODS = {
-  veryHappy: { label: 'Very Happy', color: '#FFD93D', value: 5, icon: '😄' },
-  happy: { label: 'Happy', color: '#4CAF50', value: 4, icon: '😊' },
-  content: { label: 'Content', color: '#7ED6DF', value: 3, icon: '😌' },
-  neutral: { label: 'Meh', color: '#92beb5', value: 2, icon: '😐' },
-  tired: { label: 'Tired', color: '#95a5a6', value: 2, icon: '😴' },
-  anxious: { label: 'Anxious', color: '#9b59b6', value: 1, icon: '😰' },
-  angry: { label: 'Angry', color: '#e74c3c', value: 1, icon: '😠' },
-  sad: { label: 'Sad', color: '#7286D3', value: 1, icon: '😢' },
-  overwhelmed: { label: 'Overwhelmed', color: '#ffa502', value: 1, icon: '😵' },
-  verySad: { label: 'Very Sad', color: '#b44560', value: 0, icon: '😭' },
-  hopeful: { label: 'Hopeful', color: '#00cec9', value: 4, icon: '🤗' }
+  veryHappy: { label: 'Very Happy', color: '#FFD93D', value: 5, icon: 'emoticon-excited-outline' },
+  happy: { label: 'Happy', color: '#4CAF50', value: 4, icon: 'emoticon-happy-outline' },
+  content: { label: 'Content', color: '#7ED6DF', value: 3, icon: 'emoticon-outline' },
+  neutral: { label: 'Meh', color: '#92beb5', value: 2, icon: 'emoticon-neutral-outline' },
+  anxious: { label: 'Anxious', color: '#9b59b6', value: 1, icon: 'emoticon-frown-outline' },
+  angry: { label: 'Angry', color: '#e74c3c', value: 1, icon: 'emoticon-angry-outline' },
+  sad: { label: 'Sad', color: '#7286D3', value: 1, icon: 'emoticon-sad-outline' },
+  verySad: { label: 'Very Sad', color: '#b44560', value: 0, icon: 'emoticon-cry-outline' },
+  overwhelmed: { label: 'Overwhelmed', color: '#ffa502', value: 1, icon: 'emoticon-confused-outline' },
+  tired: { label: 'Tired', color: '#95a5a6', value: 2, icon: 'emoticon-sick-outline' },
+  hopeful: { label: 'Hopeful', color: '#00cec9', value: 4, icon: 'emoticon-wink-outline' }
 };
 
-// Mock data for demonstration (fallback when no real data is available)
-const generateMockData = () => {
-  const moods = Object.keys(MOODS);
-  const data = [];
-  const today = new Date();
-
-  for (let i = 29; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const moodKey = moods[Math.floor(Math.random() * moods.length)];
-    data.push({
-      date: date.toISOString().split('T')[0],
-      mood: moodKey,
-      value: MOODS[moodKey].value,
-      dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
-      createdAt: date
-    });
-  }
-  return data;
-};
 
 // Available avatars for selection
 const AVATAR_OPTIONS = ['😊', '😎', '😇', '😌', '🚀', '🌟', '🌈', '🧠', '💡', '🌳', '🐱', '🐶', '🦊', '🐻', '🐼', '🐯'];
@@ -105,7 +88,7 @@ const ALL_BADGES = [
   { id: 'eternal_scribe', name: 'Eternal Scribe', description: '1000-day journaling streak', icon: '📜', color: '#8E24AA' },
 
   { id: 'mood_explorer', name: 'Emotional Range', description: 'Logged 5 different moods', icon: '🎭', color: '#9C27B0' },
-  { id: 'emotional_spectrum', name: 'Full Spectrum', description: 'Logged all available moods', icon: '🌈', color: '#3F51B5' },
+  { id: 'emotional_spectrum', name: 'Full Spectrum', description: 'Logged all available moods', icon: '�', color: '#3F51B5' },
   { id: 'mood_master', name: 'Mood Master', description: 'Logged each mood at least 10 times', icon: '🎨', color: '#795548' },
 
   { id: 'positivity_champion', name: 'Positivity Champion', description: 'Achieved 70%+ positive moods overall', icon: '☀️', color: '#FFD93D' },
@@ -136,8 +119,26 @@ const ALL_BADGES = [
   { id: 'mindfulness_master', name: 'Mindfulness Master', description: 'Unlocked all other achievements', icon: '🌟', color: '#FF6B6B' },
 ];
 
+// Consistent icon size for moods (MaterialCommunityIcons now)
+const MOOD_ICON_SIZE = 24;
+const INSIGHT_ICON_SIZE = 18; // Smaller icon for insights for text flow
 
-// Helper component for displaying badges (now used in both main and modal screens)
+// Helper component for displaying moods using MaterialCommunityIcons
+const MoodDisplayIcon = ({ moodKey, size = MOOD_ICON_SIZE, color }) => {
+  const mood = MOODS[moodKey];
+  if (!mood || !mood.icon) return null; // Ensure mood and icon exist
+
+  return (
+    <MaterialCommunityIcons
+      name={mood.icon}
+      size={size}
+      color={color || mood.color} // Use passed color or default mood color
+      style={styles.moodIconSpacing} // Add spacing if needed
+    />
+  );
+};
+
+// Helper component for displaying badges
 const BadgeCard = ({ badge, isUnlocked }) => (
   <View style={[
     styles.badgeCard,
@@ -196,16 +197,16 @@ const BadgesScreen = ({ badges, unlockedBadges, onClose }) => (
 
 const MoodProfileDashboard = ({ navigation }) => {
   const [moodData, setMoodData] = useState([]);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date()); // State for month navigation
   const [streak, setStreak] = useState(0);
   const [totalEntries, setTotalEntries] = useState(0);
   const [unlockedBadges, setUnlockedBadges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState('');
   const [userAvatar, setUserAvatar] = useState('');
-  const [showBadgesScreen, setShowBadgesScreen] = useState(false); // State to control badge screen visibility
-  const [isSavingProfile, setIsSavingProfile] = useState(false); // New state to manage saving status
+  const [showBadgesScreen, setShowBadgesScreen] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [chartViewMode, setChartViewMode] = useState('pieChart'); // 'pieChart' or 'breakdown'
 
   const auth = getAuth();
   const user = auth.currentUser;
@@ -222,11 +223,10 @@ const MoodProfileDashboard = ({ navigation }) => {
         setUserName(data.name || 'Your Name');
         setUserAvatar(data.avatar || '👤');
       } else {
-        const defaultName = user.displayName || 'New User'; // Use user.displayName if available
+        const defaultName = user.displayName || 'New User';
         const defaultAvatar = '👤';
         setUserName(defaultName);
         setUserAvatar(defaultAvatar);
-        // Only attempt to save default if userId is valid
         if (userId) {
             await setDoc(userDocRef, { name: defaultName, avatar: defaultAvatar, userId }, { merge: true });
             console.log('Initial user profile created.');
@@ -237,33 +237,32 @@ const MoodProfileDashboard = ({ navigation }) => {
       setUserName('Guest User');
       setUserAvatar('👤');
     }
-  }, [userId, user]); // Added user to dependencies
+  }, [userId, user]);
 
   // Function to save user profile to Firestore
   const saveUserProfile = useCallback(async (name, avatar) => {
     if (!userId || isSavingProfile) {
       console.log('Save profile skipped: No user ID or already saving.');
-      return; // Prevent multiple saves or saving without user ID
+      return;
     }
-    setIsSavingProfile(true); // Set saving state to true
+    setIsSavingProfile(true);
     try {
       const userDocRef = doc(db, 'user_profiles', userId);
       await setDoc(userDocRef, { name, avatar, userId }, { merge: true });
-      setUserName(name); // Update state to reflect saved name
-      setUserAvatar(avatar); // Update state to reflect saved avatar
+      setUserName(name);
+      setUserAvatar(avatar);
       console.log('User profile saved successfully!');
     } catch (error) {
       console.error('Error saving user profile:', error);
-      // Optionally, show a temporary error message to the user here
     } finally {
-      setIsSavingProfile(false); // Reset saving state
+      setIsSavingProfile(false);
     }
-  }, [userId, isSavingProfile]); // Add isSavingProfile to dependencies
+  }, [userId, isSavingProfile]);
 
   // Load real entries from Firebase and calculate streak
   const loadEntriesAndCalculateStats = useCallback(async () => {
     if (!userId) {
-      setMoodData(generateMockData()); // Use mock data if not logged in
+      setMoodData(generateMockData());
       setLoading(false);
       return;
     }
@@ -273,7 +272,7 @@ const MoodProfileDashboard = ({ navigation }) => {
       const q = query(
         collection(db, 'journal_entries'),
         where('userId', '==', userId),
-        orderBy('createdAt', 'desc') // Reverted to DESC as per original working code
+        orderBy('createdAt', 'desc')
       );
 
       const querySnapshot = await getDocs(q);
@@ -286,9 +285,9 @@ const MoodProfileDashboard = ({ navigation }) => {
           let entryDate;
           if (data.createdAt instanceof Timestamp) {
             entryDate = data.createdAt.toDate();
-          } else if (data.createdAt && data.createdAt.seconds) { // Fallback for old data structure
+          } else if (data.createdAt && data.createdAt.seconds) {
             entryDate = new Date(data.createdAt.seconds * 1000);
-          } else { // Fallback to date in decrypted content
+          } else {
             entryDate = new Date(decryptedData.date);
           }
 
@@ -301,11 +300,9 @@ const MoodProfileDashboard = ({ navigation }) => {
         }
       });
 
-      // IMPORTANT: Sort loadedEntries by createdAt ascending AFTER fetching (if needed for streak/trend calculations)
-      // Firebase orderBy('desc') gives newest first. For streak and other chronological calcs, ascending is often easier.
       const sortedLoadedEntries = [...loadedEntries].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-      setMoodData(sortedLoadedEntries); // Use sorted entries for consistency in calculations
+      setMoodData(sortedLoadedEntries);
       setTotalEntries(sortedLoadedEntries.length);
 
       // Calculate journaling streak
@@ -339,33 +336,22 @@ const MoodProfileDashboard = ({ navigation }) => {
 
     } catch (error) {
       console.error('Error loading entries or calculating stats:', error);
-      setMoodData(generateMockData()); // Fallback to mock data on error
+      setMoodData(generateMockData());
       setStreak(0);
     } finally {
       setLoading(false);
     }
   }, [userId]);
 
-  // Get filtered data for selected month
+  // Get filtered data for selected month based on currentDisplayDate
   const getMonthlyData = useCallback(() => {
+    const displayMonth = currentDisplayDate.getMonth();
+    const displayYear = currentDisplayDate.getFullYear();
     return moodData.filter(entry => {
       const entryDate = new Date(entry.createdAt);
-      return entryDate.getMonth() === selectedMonth && entryDate.getFullYear() === selectedYear;
+      return entryDate.getMonth() === displayMonth && entryDate.getFullYear() === displayYear;
     });
-  }, [moodData, selectedMonth, selectedYear]);
-
-  // Initial data load and profile load effect
-  useEffect(() => {
-    if (userId) {
-      loadUserProfile();
-      loadEntriesAndCalculateStats();
-    } else {
-      setMoodData(generateMockData()); // Fallback to mock data if not logged in
-      setLoading(false);
-      setUserName('Guest User');
-      setUserAvatar('👤');
-    }
-  }, [userId, loadUserProfile, loadEntriesAndCalculateStats]);
+  }, [moodData, currentDisplayDate]);
 
   // Calculate mood statistics for distribution chart for the selected month
   const getMoodStatsForMonth = useCallback(() => {
@@ -387,9 +373,44 @@ const MoodProfileDashboard = ({ navigation }) => {
         percentage: totalMoodsInMonth > 0 ? ((count / totalMoodsInMonth) * 100).toFixed(1) : 0,
         ...MOODS[mood]
       }))
-      .filter(m => m.count > 0) // Only include moods that actually occurred
-      .sort((a, b) => b.count - a.count); // Sort by count descending
+      .filter(m => m.count > 0)
+      .sort((a, b) => b.count - a.count);
   }, [getMonthlyData]);
+
+  const moodDistributionData = getMoodStatsForMonth(); // This line now comes after getMoodStatsForMonth is defined
+
+
+  // Initial data load and profile load effect
+  useEffect(() => {
+    if (userId) {
+      loadUserProfile();
+      loadEntriesAndCalculateStats();
+    } else {
+      setMoodData(generateMockData());
+      setLoading(false);
+      setUserName('Guest User');
+      setUserAvatar('👤');
+    }
+  }, [userId, loadUserProfile, loadEntriesAndCalculateStats]);
+
+
+  // Handle month navigation
+  const handlePreviousMonth = () => {
+    setCurrentDisplayDate(prevDate => {
+      const newDate = new Date(prevDate);
+      newDate.setMonth(newDate.getMonth() - 1);
+      return newDate;
+    });
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDisplayDate(prevDate => {
+      const newDate = new Date(prevDate);
+      newDate.setMonth(newDate.getMonth() + 1);
+      return newDate;
+    });
+  };
+
 
   // Get most frequent mood across ALL entries (for general insights)
   const getMostFrequentMoodGlobal = useCallback(() => {
@@ -432,7 +453,7 @@ const MoodProfileDashboard = ({ navigation }) => {
     if (totalEntries >= 200) newBadges.push('reflection_guru');
     if (totalEntries >= 365) newBadges.push('journal_master');
     if (totalEntries >= 1000) newBadges.push('thousand_thoughts');
-    if (totalEntries >= 5000) newBadges.push('legend_status'); // Assuming 'legend_status' is defined in ALL_BADGES
+    if (totalEntries >= 5000) newBadges.push('legend_status');
 
     // Streak badges
     if (streak >= 3) newBadges.push('three_day_streak');
@@ -443,7 +464,7 @@ const MoodProfileDashboard = ({ navigation }) => {
     if (streak >= 1000) newBadges.push('eternal_scribe');
 
     // Mood variety badges
-    const distinctMoodsCount = new Set(moodData.map(entry => entry.mood)).size; // Defined here
+    const distinctMoodsCount = new Set(moodData.map(entry => entry.mood)).size;
     if (distinctMoodsCount >= 5) newBadges.push('mood_explorer');
     if (distinctMoodsCount === Object.keys(MOODS).length) newBadges.push('emotional_spectrum');
 
@@ -485,19 +506,19 @@ const MoodProfileDashboard = ({ navigation }) => {
     const nightOwlDays = new Set();
     const midnightCount = moodData.filter(entry => {
       const hour = new Date(entry.createdAt).getHours();
-      return hour >= 0 && hour < 6; // Entries between 12 AM and 5:59 AM
+      return hour >= 0 && hour < 6;
     }).length;
     const dawnCount = moodData.filter(entry => {
       const hour = new Date(entry.createdAt).getHours();
-      return hour >= 0 && hour < 6; // Same as midnight count, consider re-evaluating definition if different
+      return hour >= 0 && hour < 6;
     }).length;
 
     moodData.forEach(entry => {
       const hour = new Date(entry.createdAt).getHours();
       const dateKey = new Date(entry.createdAt).toDateString();
 
-      if (hour < 8) earlyBirdDays.add(dateKey); // Before 8 AM
-      if (hour >= 22) nightOwlDays.add(dateKey); // From 10 PM onwards
+      if (hour < 8) earlyBirdDays.add(dateKey);
+      if (hour >= 22) nightOwlDays.add(dateKey);
     });
 
     if (earlyBirdDays.size >= 7) newBadges.push('early_bird');
@@ -534,13 +555,12 @@ const MoodProfileDashboard = ({ navigation }) => {
             const prevEntry = sortedMoodData[i - 1];
             const diffDays = Math.round(Math.abs(entry.createdAt.getTime() - prevEntry.createdAt.getTime()) / (1000 * 60 * 60 * 24));
             if (diffDays === 1 && happyContentStrictMoods.includes(prevEntry.mood)) {
-              // Continues streak
             } else {
-              break; // Streak broken
+              break;
             }
           }
         } else {
-          break; // Streak broken
+          break;
         }
         if (consistentCalmStreak >= 3) {
           newBadges.push('consistent_calm');
@@ -550,7 +570,7 @@ const MoodProfileDashboard = ({ navigation }) => {
     }
 
     // Reflection Pro: Wrote entries on 5 different days of the week
-    const distinctDaysOfWeek = new Set(moodData.map(entry => new Date(entry.createdAt).getDay())).size; // 0=Sunday, 6=Saturday
+    const distinctDaysOfWeek = new Set(moodData.map(entry => new Date(entry.createdAt).getDay())).size;
     if (distinctDaysOfWeek >= 5) newBadges.push('reflection_pro');
 
     // Adaptive Spirit: Logged 7 different moods in one week (any 7 day rolling window)
@@ -573,13 +593,11 @@ const MoodProfileDashboard = ({ navigation }) => {
     }
 
     // Mindfulness Master (All other achievements unlocked)
-    // Filter out 'mindfulness_master' itself from ALL_BADGES for this check
     const nonMasterBadges = ALL_BADGES.filter(badge => badge.id !== 'mindfulness_master');
     const allOtherBadgesUnlocked = nonMasterBadges.every(badge => newBadges.includes(badge.id));
     if (allOtherBadgesUnlocked) {
       newBadges.push('mindfulness_master');
     }
-
 
     setUnlockedBadges(Array.from(new Set(newBadges)));
   }, [totalEntries, streak, moodData]);
@@ -594,10 +612,9 @@ const MoodProfileDashboard = ({ navigation }) => {
   const getDailyInsights = useCallback(() => {
     const insights = [];
     const monthlyData = getMonthlyData();
-    const monthName = new Date(selectedYear, selectedMonth).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    const currentMonthName = currentDisplayDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
-    // Ensure distinctMoods is calculated within this function or passed as a prop
-    const distinctMoodsCount = new Set(moodData.map(entry => entry.mood)).size; // Fix: Calculate here
+    const distinctMoodsCount = new Set(moodData.map(entry => entry.mood)).size;
 
     // Streak insights
     if (streak > 0) {
@@ -637,8 +654,8 @@ const MoodProfileDashboard = ({ navigation }) => {
       else if (avgMoodValue <= 1.5) moodTrendLabel = 'challenging';
 
       insights.push({
-        title: `📊 ${monthName} Overview`,
-        text: `You logged **${monthlyData.length} entries** in ${monthName}. Your overall mood trend was **${moodTrendLabel}**. ${avgMoodValue >= 3.5 ? 'Keep up the great work!' : 'Remember, all emotions are valid and temporary.'}`
+        title: `📊 ${currentMonthName} Overview`,
+        text: `You logged **${monthlyData.length} entries** in ${currentMonthName}. Your overall mood trend was **${moodTrendLabel}**. ${avgMoodValue >= 3.5 ? 'Keep up the great work!' : 'Remember, all emotions are valid and temporary.'}`
       });
 
       // Mood pattern insights
@@ -646,14 +663,15 @@ const MoodProfileDashboard = ({ navigation }) => {
         acc[entry.mood] = (acc[entry.mood] || 0) + 1;
         return acc;
       }, {});
-      const dominantMood = Object.entries(mostCommonMoodInMonth).sort(([, a], [, b]) => b - a)[0];
+      const dominantMoodEntry = Object.entries(mostCommonMoodInMonth).sort(([, a], [, b]) => b - a)[0];
 
-      if (dominantMood && dominantMood[1] > 0) { // Ensure there's a dominant mood logged
-        const moodName = MOODS[dominantMood[0]]?.label;
-        const moodIcon = MOODS[dominantMood[0]]?.icon;
+      if (dominantMoodEntry && dominantMoodEntry[1] > 0) {
+        const dominantMoodKey = dominantMoodEntry[0];
+        const moodInfo = MOODS[dominantMoodKey];
         insights.push({
           title: '🎭 Monthly Mood Pattern',
-          text: `In ${monthName}, you felt ${moodIcon} **${moodName}** most often. Understanding your patterns helps you recognize what influences your well-being.`
+          iconComponent: <MaterialCommunityIcons name={moodInfo.icon} size={INSIGHT_ICON_SIZE} color={moodInfo.color} />,
+          text: `In ${currentMonthName}, you felt **${moodInfo.label}** most often. Understanding your patterns helps you recognize what influences your well-being.`
         });
       }
     }
@@ -685,14 +703,14 @@ const MoodProfileDashboard = ({ navigation }) => {
     }
 
     // Seasonal or time-based insights
-    const currentMonth = new Date().getMonth();
+    const today = new Date();
     const currentSeasonMap = {
       0: 'Winter', 1: 'Winter', 2: 'Spring', 3: 'Spring', 4: 'Spring',
       5: 'Summer', 6: 'Summer', 7: 'Summer', 8: 'Fall', 9: 'Fall', 10: 'Fall', 11: 'Winter'
     };
-    const currentSeason = currentSeasonMap[new Date().getMonth()];
+    const currentSeason = currentSeasonMap[today.getMonth()];
 
-    if (selectedMonth === currentMonth && selectedYear === new Date().getFullYear()) {
+    if (currentDisplayDate.getMonth() === today.getMonth() && currentDisplayDate.getFullYear() === today.getFullYear()) {
       insights.push({
         title: `🍂 ${currentSeason} Reflection`,
         text: `${currentSeason} can be a time of change and reflection. How has this season affected your mood and perspective recently?`
@@ -700,7 +718,7 @@ const MoodProfileDashboard = ({ navigation }) => {
     }
 
     // Growth and improvement insights (if sufficient data for the month)
-    if (monthlyData.length >= 14) { // Needs at least two weeks of data for a meaningful comparison
+    if (monthlyData.length >= 14) {
       const firstHalf = monthlyData.slice(0, Math.floor(monthlyData.length / 2));
       const secondHalf = monthlyData.slice(Math.floor(monthlyData.length / 2));
 
@@ -708,9 +726,9 @@ const MoodProfileDashboard = ({ navigation }) => {
       const secondHalfAvg = secondHalf.reduce((sum, entry) => sum + entry.value, 0) / secondHalf.length;
 
       let trendInsight = '';
-      if (secondHalfAvg > firstHalfAvg + 0.2) { // Small margin for improvement
+      if (secondHalfAvg > firstHalfAvg + 0.2) {
         trendInsight = 'Your mood trend seems to be **improving** this month! Keep focusing on what brings you joy.';
-      } else if (secondHalfAvg < firstHalfAvg - 0.2) { // Small margin for decline
+      } else if (secondHalfAvg < firstHalfAvg - 0.2) {
         trendInsight = 'It looks like your mood trend has **slightly declined** this month. Take some time for self-care and re-evaluation.';
       } else {
         trendInsight = 'Your mood has been relatively **stable** this month. Consistent reflection can help you maintain your well-being.';
@@ -741,9 +759,7 @@ const MoodProfileDashboard = ({ navigation }) => {
         });
     }
 
-
     // General insights about mood variety
-    // Using distinctMoodsCount from above
     if (distinctMoodsCount > 5 && !unlockedBadges.includes('emotional_spectrum')) {
         insights.push({
             title: '🌈 Broad Emotional Range',
@@ -751,59 +767,40 @@ const MoodProfileDashboard = ({ navigation }) => {
         });
     }
 
+    return insights;
+  }, [totalEntries, streak, moodData, currentDisplayDate, getMonthlyData, unlockedBadges]);
 
-    return insights; // Return the accumulated insights
-  }, [totalEntries, streak, moodData, selectedMonth, selectedYear, getMonthlyData, unlockedBadges, userName]);
+  const dailyInsights = getDailyInsights(); // This line now comes after getDailyInsights is defined.
 
-  // Data for the monthly mood distribution bar chart
-  const moodDistributionData = getMoodStatsForMonth();
-  const barChartData = {
-    labels: moodDistributionData.map(mood => mood.icon),
-    datasets: [{
-      data: moodDistributionData.map(mood => parseInt(mood.count)), // Use count for bar height
-      colors: moodDistributionData.map(mood => (opacity = 1) => MOODS[mood.mood].color),
-    }],
-  };
+
+  const pieChartData = moodDistributionData.map(mood => ({
+    name: mood.label, // Use full label for legend
+    population: parseInt(mood.count), // Count of entries
+    color: mood.color,
+    legendFontColor: '#7F7F7F', // Default legend font color (won't be shown in custom legend)
+    legendFontSize: 15, // Default legend font size (won't be shown in custom legend)
+  }));
 
   const chartConfig = {
-    backgroundGradientFrom: '#ffffff',
-    backgroundGradientTo: '#ffffff',
-    decimalPlaces: 0,
-    color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-    barPercentage: 0.8,
-    fillShadowGradientOpacity: 1,
-    propsForLabels: {
+    backgroundGradientFrom: '#F0F0FF',
+    backgroundGradientTo: '#FFFFFF',
+    color: (opacity = 1) => `rgba(107, 78, 255, ${opacity})`, // Purple for text on slices
+    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`, // This typically affects labels on axis, less relevant for PieChart
+    propsForLabels: { // Styling for labels directly on PieChart slices
       fontSize: 12,
       fontWeight: 'bold',
+      fill: `rgba(255, 255, 255, 1)`, // White text on slices for better contrast with dark colors
     },
-    formatYLabel: (yValue) => `${Math.round(yValue)}`, // Show counts on Y-axis
-    yAxisSuffix: "",
+    decimalPlaces: 0,
+    hasLegend: false, // Explicitly disable built-in legend
   };
 
-  const getMonths = () => {
-    const months = [];
-    const today = new Date();
-    // Go back 12 months from current month
-    for (let i = 0; i < 12; i++) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-      months.push({
-        value: d.getMonth(),
-        year: d.getFullYear(),
-        label: d.toLocaleString('en-US', { month: 'short', year: '2-digit' }),
-      });
-    }
-    return months.reverse(); // Show from oldest to newest
-  };
-
-  const months = getMonths();
-  const dailyInsights = getDailyInsights(); // Get insights for rendering
 
   const StatCard = ({ icon, value, label, gradient, onPress }) => (
     <TouchableOpacity
       style={[styles.statCard, { backgroundColor: gradient }]}
-      onPress={onPress} // Pass onPress to TouchableOpacity
-      disabled={!onPress} // Disable if no onPress is provided
+      onPress={onPress}
+      disabled={!onPress}
     >
       <Text style={styles.statIcon}>{icon}</Text>
       <Text style={styles.statValue}>{value}</Text>
@@ -840,7 +837,7 @@ const MoodProfileDashboard = ({ navigation }) => {
               onBlur={() => saveUserProfile(userName, userAvatar)}
               placeholderTextColor="#A0AEC0"
               maxLength={25}
-              editable={!isSavingProfile} // Disable input while saving
+              editable={!isSavingProfile}
             />
             <Text style={styles.profileEditHint}>{isSavingProfile ? 'Saving...' : 'Tap to edit name'}</Text>
           </View>
@@ -858,7 +855,7 @@ const MoodProfileDashboard = ({ navigation }) => {
                   userAvatar === avatar && styles.avatarOptionSelected
                 ]}
                 onPress={() => saveUserProfile(userName, avatar)}
-                disabled={isSavingProfile} // Disable avatar selection while saving
+                disabled={isSavingProfile}
               >
                 <Text style={styles.avatarText}>{avatar}</Text>
               </TouchableOpacity>
@@ -884,94 +881,113 @@ const MoodProfileDashboard = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Monthly Mood Distribution Chart Section */}
+      {/* Monthly Mood Distribution Chart/Breakdown Section */}
       <View style={styles.chartCard}>
         <View style={styles.chartHeader}>
           <Text style={styles.chartTitle}>Monthly Mood Distribution</Text>
-          {/* Month Selector */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.monthSelector}>
-            {months.map(month => (
-              <TouchableOpacity
-                key={`${month.value}-${month.year}`}
-                style={[
-                  styles.monthButton,
-                  selectedMonth === month.value && selectedYear === month.year && styles.monthButtonSelected
-                ]}
-                onPress={() => {
-                  setSelectedMonth(month.value);
-                  setSelectedYear(month.year);
-                }}
-              >
-                <Text style={[
-                  styles.monthButtonText,
-                  selectedMonth === month.value && selectedYear === month.year && styles.monthButtonTextSelected
-                ]}>
-                  {month.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          {/* Month Navigation Buttons */}
+          <View style={styles.monthNavigationContainer}>
+            <TouchableOpacity onPress={handlePreviousMonth} style={styles.monthNavigationButton}>
+              <MaterialCommunityIcons name="chevron-left" size={24} color="#4A5568" />
+            </TouchableOpacity>
+            <Text style={styles.currentMonthText}>
+              {currentDisplayDate.toLocaleString('en-US', { month: 'short', year: '2-digit' })}
+            </Text>
+            <TouchableOpacity onPress={handleNextMonth} style={styles.monthNavigationButton}>
+              <MaterialCommunityIcons name="chevron-right" size={24} color="#4A5568" />
+            </TouchableOpacity>
+          </View>
         </View>
-        {/* Render BarChart if data is available, otherwise show a message */}
-        {moodDistributionData.length > 0 ? (
-          <BarChart
-            data={barChartData}
-            width={screenWidth - 60}
-            height={220}
-            chartConfig={chartConfig}
-            style={styles.chart}
-            fromZero={true}
-            showValuesOnTopOfBars={true} // Show count values on top of bars
-            yAxisLabel=""
-            yAxisSuffix=""
-          />
-        ) : (
-          <Text style={styles.noDataText}>No mood data available for {new Date(selectedYear, selectedMonth).toLocaleString('en-US', { month: 'long', year: 'numeric' })}. Start journaling!</Text>
-        )}
-      </View>
 
-      {/* Mood Distribution Details (list with progress bars) */}
-      <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>Mood Breakdown for {new Date(selectedYear, selectedMonth).toLocaleString('en-US', { month: 'long', year: 'numeric' })}</Text>
-        <View style={styles.moodDistributionContainer}>
-          {moodDistributionData.map((mood, index) => (
-            <View key={mood.mood} style={styles.moodDistributionItem}>
-              <Text style={styles.moodDistributionIcon}>{mood.icon}</Text>
-              <View style={styles.moodDistributionContent}>
-                <View style={styles.moodDistributionHeader}>
-                  <Text style={styles.moodDistributionLabel}>{mood.label}</Text>
-                  <Text style={styles.moodDistributionPercentage}>{mood.percentage}%</Text>
-                </View>
-                <View style={styles.progressBarContainer}>
-                  <View
-                    style={[
-                      styles.progressBar,
-                      {
-                        width: `${mood.percentage}%`,
-                        backgroundColor: mood.color
-                      }
-                    ]}
-                  />
+        {/* Toggle Buttons for Chart/Breakdown */}
+        <View style={styles.toggleButtonsContainer}>
+          <TouchableOpacity
+            style={[styles.toggleButton, chartViewMode === 'pieChart' && styles.toggleButtonSelected]}
+            onPress={() => setChartViewMode('pieChart')}
+          >
+            <Text style={[styles.toggleButtonText, chartViewMode === 'pieChart' && styles.toggleButtonTextSelected]}>View Chart</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleButton, chartViewMode === 'breakdown' && styles.toggleButtonSelected]}
+            onPress={() => setChartViewMode('breakdown')}
+          >
+            <Text style={[styles.toggleButtonText, chartViewMode === 'breakdown' && styles.toggleButtonTextSelected]}>View Breakdown</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Conditional Rendering for Chart or Breakdown */}
+        {moodDistributionData.length > 0 ? (
+          <>
+            {chartViewMode === 'pieChart' ? (
+              // Pie Chart and its custom legend in a row
+              <View style={styles.chartAndLegendContainer}>
+                <PieChart
+                  data={pieChartData}
+                  width={screenWidth * 0.55} // Adjusted width to make space for legend
+                  height={220}
+                  chartConfig={chartConfig}
+                  accessor="population"
+                  backgroundColor="transparent"
+                  paddingLeft="50"
+                  absolute
+                  hasLegend={false} // Ensure built-in legend is off
+                />
+                {/* Custom Mood Legend for Pie Chart */}
+                <View style={styles.moodLegendContainer}>
+                  {moodDistributionData.map(mood => (
+                    <View key={mood.mood} style={styles.moodLegendItem}>
+                      <MoodDisplayIcon moodKey={mood.mood} size={MOOD_ICON_SIZE * 0.8} color={mood.color} />
+                      <Text style={styles.moodLegendText}>{mood.label}</Text>
+                    </View>
+                  ))}
                 </View>
               </View>
-            </View>
-          ))}
-          {moodDistributionData.length === 0 && (
-            <Text style={styles.noDataText}>No mood data for this month to display breakdown.</Text>
-          )}
-        </View>
+            ) : ( // chartViewMode === 'breakdown'
+              <View style={styles.moodDistributionContainer}>
+                {moodDistributionData.map((mood, index) => (
+                  <View key={mood.mood} style={styles.moodDistributionItem}>
+                    <MoodDisplayIcon moodKey={mood.mood} size={MOOD_ICON_SIZE} color={mood.color} />
+                    <View style={styles.moodDistributionContent}>
+                      <View style={styles.moodDistributionHeader}>
+                        <Text style={styles.moodDistributionLabel}>{mood.label}</Text>
+                        <Text style={styles.moodDistributionPercentage}>{mood.percentage}%</Text>
+                      </View>
+                      <View style={styles.progressBarContainer}>
+                        <View
+                          style={[
+                            styles.progressBar,
+                            {
+                              width: `${mood.percentage}%`,
+                              backgroundColor: mood.color
+                            }
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        ) : (
+          <Text style={styles.noDataText}>No mood data available for {currentDisplayDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })}. Start journaling!</Text>
+        )}
       </View>
 
       {/* Daily Insights Section */}
       <View style={styles.insightsCard}>
         <View style={styles.insightsHeader}>
           <Text style={styles.insightsHeaderIcon}>⚡</Text>
-          <Text style={styles.insightsTitle}>Daily Insights</Text>
+          <Text style={styles.insightsTitle}>Recent Insights</Text>
         </View>
         <View style={styles.insightsContainer}>
           {dailyInsights.map((insight, index) => (
             <View key={index} style={styles.insightItem}>
-              <Text style={styles.insightTitle}>{insight.title}</Text>
+              <View style={styles.insightItemHeader}>
+                {/* Render the icon component directly if it exists */}
+                {insight.iconComponent}
+                <Text style={styles.insightTitle}>{insight.title}</Text>
+              </View>
               <Text style={styles.insightText}>{insight.text}</Text>
             </View>
           ))}
@@ -979,6 +995,15 @@ const MoodProfileDashboard = ({ navigation }) => {
             <Text style={styles.noDataText}>No insights available yet. Start journaling to unlock personalized insights!</Text>
           )}
         </View>
+        <TouchableOpacity
+           style={styles.viewAllInsightsButton}
+          onPress={() => navigation.navigate('Insights')} // OLD: navigation.navigate
+          onPress={() => router.push({ // NEW: Use router.push
+            pathname: '/insights', // Assuming your InsightsScreen is at app/(tabs)/insights.tsx
+          })}
+         >
+           <Text style={styles.viewAllInsightsButtonText}>View All Trends & Insights →</Text>
+         </TouchableOpacity>
       </View>
     </ScrollView>
   );

@@ -148,6 +148,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
+    elevation: 2,
   },
   statIcon: {
     fontSize: 24, // Smaller icon size
@@ -194,31 +195,29 @@ const styles = StyleSheet.create({
     flexShrink: 1, // Allow title to shrink
     marginRight: 10, // Space from selector
   },
-  monthSelector: {
-    paddingVertical: 5,
-  },
-  monthButton: {
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginHorizontal: 4,
+  // --- Month Navigation Styles ---
+  monthNavigationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#F7FAFC',
+    borderRadius: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  monthButtonSelected: {
-    backgroundColor: '#6B4EFF', // Highlight color
+  monthNavigationButton: {
+    padding: 5,
   },
-  monthButtonText: {
-    fontSize: 14,
-    color: '#718096',
-    fontWeight: '500',
+  currentMonthText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginHorizontal: 10,
+    color: '#4A5568',
     fontFamily: 'System',
-  },
-  monthButtonTextSelected: {
-    color: '#FFFFFF',
-  },
-  chart: {
-    marginVertical: 8,
-    borderRadius: 16,
   },
   noDataText: {
     fontSize: 16,
@@ -227,7 +226,17 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     fontFamily: 'System',
   },
-  moodDistributionContainer: {
+  // --- Chart and Legend Layout (for Pie Chart) ---
+  chartAndLegendContainer: {
+    flexDirection: 'row',
+    alignItems: 'center', // Align chart and legend vertically in the center
+    justifyContent: 'space-around', // Distribute space evenly
+    width: '100%', // Take full width of the parent card
+    paddingHorizontal: 0, // Let child components handle their own spacing
+    marginTop: 10, // Add some top margin to separate from toggle buttons
+    minHeight: 220, // Ensure enough height even if no data for the chart, keeps layout stable
+  },
+  moodDistributionContainer: { // This is for the breakdown list, not the chart legend
     width: '100%',
     marginTop: 10,
   },
@@ -236,14 +245,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  moodDistributionIcon: {
-    fontSize: 24,
-    marginRight: 10,
-    width: 30, // Fixed width for alignment
-    textAlign: 'center',
-  },
   moodDistributionContent: {
     flex: 1,
+    marginLeft: 10, // Add some spacing from the icon
   },
   moodDistributionHeader: {
     flexDirection: 'row',
@@ -272,6 +276,58 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 4,
   },
+  // --- Mood Legend Styles (for Pie Chart custom legend, on the right) ---
+  moodLegendContainer: {
+    flexDirection: 'column', // Stack legend items vertically
+    justifyContent: 'center', // Center items vertically within the column
+    alignItems: 'flex-start', // Align items to the start (left) of the legend column
+    width: screenWidth * 0.35, // Adjust width as a percentage of screenWidth
+    paddingLeft: 10, // Small padding from the chart
+    flexShrink: 0, // Prevent shrinking
+    flexGrow: 1, // Allow growing if space is available
+  },
+  moodLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4, // Spacing between legend items
+  },
+  moodLegendText: {
+    fontSize: 14,
+    color: '#4A5568',
+    fontFamily: 'System',
+    marginLeft: 4, // Add small space after icon for text
+  },
+  // --- Toggle Buttons Styles ---
+  toggleButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 20,
+    width: '100%',
+  },
+  toggleButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 10,
+    marginHorizontal: 5,
+    backgroundColor: '#E2E8F0', // Light grey for unselected
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  toggleButtonSelected: {
+    backgroundColor: '#6B4EFF', // Your signature purple
+  },
+  toggleButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#4A5568', // Dark text for unselected
+    fontFamily: 'System',
+  },
+  toggleButtonTextSelected: {
+    color: '#FFFFFF', // White text for selected
+  },
   // --- Badges Styles (for main page preview and modal) ---
   badgesHeader: {
     flexDirection: 'row',
@@ -286,15 +342,15 @@ const styles = StyleSheet.create({
   badgesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-around', // Distribute items evenly
+    justifyContent: 'space-around',
     width: '100%',
   },
   badgeCard: {
-    width: (screenWidth - 80) / 2, // Two columns layout, adjusted for smaller stat cards
-    aspectRatio: 0.9, // Maintain aspect ratio, slightly taller to fit text
+    width: (screenWidth - 80) / 2,
+    aspectRatio: 0.9,
     borderRadius: 15,
     padding: 15,
-    margin: 8, // Spacing between cards
+    margin: 8,
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
@@ -306,18 +362,18 @@ const styles = StyleSheet.create({
   },
   badgeUnlocked: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#6B4EFF', // Border for unlocked badges
+    borderColor: '#6B4EFF',
   },
   badgeLocked: {
     backgroundColor: '#F7FAFC',
-    borderColor: '#E2E8F0', // Lighter border for locked badges
+    borderColor: '#E2E8F0',
   },
   badgeIcon: {
     fontSize: 40,
     marginBottom: 5,
   },
   badgeIconLocked: {
-    color: '#A0AEC0', // Muted color for locked icons
+    color: '#A0AEC0',
   },
   badgeName: {
     fontSize: 16,
@@ -343,7 +399,7 @@ const styles = StyleSheet.create({
   },
   // --- Daily Insights Styles ---
   insightsCard: {
-    backgroundColor: '#E0F2FE', // Light blue background for insights
+    backgroundColor: '#E0F2FE',
     borderRadius: 20,
     padding: 20,
     marginBottom: 20,
@@ -361,16 +417,16 @@ const styles = StyleSheet.create({
   insightsHeaderIcon: {
     fontSize: 28,
     marginRight: 10,
-    color: '#2196F3', // Blue color for icon
+    color: '#2196F3',
   },
   insightsTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#2D3748',
     fontFamily: 'System',
+    marginLeft: 8,
   },
   insightsContainer: {
-    // No specific styles needed for container, items handle layout
   },
   insightItem: {
     backgroundColor: '#FFFFFF',
@@ -383,12 +439,10 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-  insightTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#4A5568',
+  insightItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 5,
-    fontFamily: 'System',
   },
   insightText: {
     fontSize: 14,
@@ -396,12 +450,15 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontFamily: 'System',
   },
+  moodIconSpacing: { // For icons within text flow (e.g., in insights or legend)
+    marginRight: 2, // Small margin to separate icon from text
+  },
   // --- Modal Specific Styles for BadgesScreen ---
   fullScreenModalContainer: {
     flex: 1,
     backgroundColor: '#F8F8F8',
     padding: 20,
-    paddingTop: 50, // Adjust for status bar
+    paddingTop: 50,
   },
   modalCloseButton: {
     alignSelf: 'flex-start',
@@ -424,6 +481,20 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
     fontFamily: 'System',
+  },
+  insightsButton: {
+    padding: 15,
+    borderRadius: 8,
+    backgroundColor: '#6B4EFF', // A vibrant color for the button
+    alignItems: 'center', // Center content horizontally
+    justifyContent: 'center', // Center content vertically
+    marginTop: 10, // Add some space above the button
+  },
+  insightsButtonText: {
+      color: '#fff', // White text for contrast on the button
+      fontWeight: 'bold',
+      marginTop: 10, // Space above the text
+      fontSize: 16,
   },
 });
 

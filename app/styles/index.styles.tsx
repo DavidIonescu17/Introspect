@@ -13,9 +13,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    width: 120,
-    height: 120,
-    marginBottom: 20,
+    width: 230,
+    height: 230,
+    marginBottom: -20,
+    marginTop: -60,
     resizeMode: 'contain',
   },
   heroTitle: {
@@ -120,12 +121,13 @@ const styles = StyleSheet.create({
   },
   calendar: {
     
+    
   },
   legendIcon: {
     marginRight: 3, 
   },
   legend: {
-    marginTop: 20,
+    marginTop: -20,
     paddingTop: 15,
     borderTopWidth: 1,
     borderTopColor: '#f1f2f6',
@@ -199,7 +201,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 1, // Reduced horizontal margin between days
   },
   selectedDayWrapper: {
-    backgroundColor: '#6B4EFF',
+    backgroundColor: 'rgba(43, 0, 255, 0.5)',
   },
   disabledDayWrapper: {
     // styles
