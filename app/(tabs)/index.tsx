@@ -1,17 +1,17 @@
+import styles from '../styles/index.styles';
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, TouchableOpacity, Text, ScrollView, Image, View, Dimensions } from 'react-native';
+import { TouchableOpacity, Text, ScrollView, Image, View, Dimensions, Alert } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { auth } from '../../firebaseConfig';
 import { getAuth } from 'firebase/auth';
 import { router } from 'expo-router';
-import { Alert } from 'react-native';
-import { 
-  getFirestore, 
-  collection, 
-  getDocs, 
-  query, 
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  query,
   where,
-  orderBy 
+  orderBy
 } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import CryptoJS from 'crypto-js';
@@ -50,8 +50,6 @@ export default function TabOneScreen() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [moodData, setMoodData] = useState({});
   const [loading, setLoading] = useState(true);
-  const [currentQuote, setCurrentQuote] = useState('');
-  const [currentAuthor, setCurrentAuthor] = useState('');
 
   const user = getAuth().currentUser;
 
@@ -62,29 +60,14 @@ export default function TabOneScreen() {
 
     if (user) {
       loadMoodData();
-      fetchQuote();
     }
 
     return () => unsubscribe();
   }, [user]);
 
-  const fetchQuote = async () => {
-    try {
-      const response = await fetch('https://zenquotes.io/api/random/');
-      const data = await response.json();
-      if (data && data.length > 0) {
-        setCurrentQuote(data[0].q);
-        setCurrentAuthor(data[0].a);
-      }
-    } catch (error) {
-      setCurrentQuote('Every day is a new beginning.');
-      setCurrentAuthor('Unknown');
-    }
-  };
-
   const loadMoodData = async () => {
     if (!user) return;
-    
+
     try {
       setLoading(true);
       const q = query(
@@ -92,24 +75,24 @@ export default function TabOneScreen() {
         where('userId', '==', user.uid),
         orderBy('createdAt', 'desc')
       );
-      
+
       const querySnapshot = await getDocs(q);
       const moodByDate = {};
-      
+
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         const decryptedData = decryptData(data.encryptedContent);
         if (decryptedData && decryptedData.mood) {
           const entryDate = new Date(decryptedData.date).toISOString().split('T')[0];
-          
-          // Store multiple moods per day or the most recent one
+
           if (!moodByDate[entryDate]) {
             moodByDate[entryDate] = [];
           }
+          // Add the mood to the array for that day
           moodByDate[entryDate].push(decryptedData.mood);
         }
       });
-      
+
       setMoodData(moodByDate);
     } catch (error) {
       console.error('Error loading mood data:', error);
@@ -121,7 +104,7 @@ export default function TabOneScreen() {
   const handleDayPress = (day) => {
     const now = new Date();
     const todayDateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  
+
     if (day.dateString > todayDateString) {
       Alert.alert(
         'Future Date',
@@ -130,13 +113,13 @@ export default function TabOneScreen() {
       );
       return;
     }
-  
+
     router.push({
       pathname: '/specific-day',
       params: { date: day.dateString },
     });
   };
-  
+
   const getTodayDate = () => {
     const today = new Date();
     const yyyy = today.getFullYear();
@@ -155,33 +138,25 @@ export default function TabOneScreen() {
       },
     };
 
-    // Add mood indicators
     Object.keys(moodData).forEach(date => {
-      const moods = moodData[date];
-      if (moods && moods.length > 0) {
-        // Use the most recent mood for the day
-        const primaryMood = moods[0];
-        const moodColor = MOODS[primaryMood]?.color || '#ccc';
-        
+      const moodsForDay = moodData[date];
+      if (moodsForDay && moodsForDay.length > 0) {
         if (date === todayDate) {
-          // Keep today's styling but add mood indicator
           marked[date] = {
             ...marked[date],
-            dots: [{ color: moodColor, selectedDotColor: 'white' }]
+            moods: moodsForDay, // Pass the array of moods
           };
         } else {
           marked[date] = {
-            dots: [{ color: moodColor }],
-            // Add subtle background for days with entries
+            moods: moodsForDay, // Pass the array of moods
             customStyles: {
-              container: {
-                backgroundColor: moodColor + '20',
-                borderRadius: 16,
-              },
-              text: {
-                color: moodColor,
-                fontWeight: 'bold'
-              }
+                container: {
+                    backgroundColor: 'white',
+                    borderRadius: 16,
+                },
+                text: {
+                    color: '#2d3436',
+                }
             }
           };
         }
@@ -191,42 +166,91 @@ export default function TabOneScreen() {
     return marked;
   };
 
+
   const getStreakCount = () => {
     const today = new Date();
     let streak = 0;
-    
+
     for (let i = 0; i < 30; i++) {
       const checkDate = new Date(today);
       checkDate.setDate(today.getDate() - i);
       const dateString = checkDate.toISOString().split('T')[0];
-      
+
       if (moodData[dateString] && moodData[dateString].length > 0) {
         streak++;
       } else {
         break;
       }
     }
-    
+
     return streak;
   };
 
   const getMoodStats = () => {
     const allMoods = Object.values(moodData).flat();
     const moodCounts = {};
-    
+
     allMoods.forEach(mood => {
       moodCounts[mood] = (moodCounts[mood] || 0) + 1;
     });
-    
-    const topMood = Object.keys(moodCounts).reduce((a, b) => 
+
+    const topMood = Object.keys(moodCounts).reduce((a, b) =>
       moodCounts[a] > moodCounts[b] ? a : b, 'neutral'
     );
-    
+
     return { topMood, totalEntries: allMoods.length };
   };
 
   const stats = getMoodStats();
   const streak = getStreakCount();
+  const CustomDayWithMultiMoods = ({ date, state, marking, onPress }) => {
+  const isSelected = marking?.selected;
+  const moodsForDay = marking?.moods || []; // Get all moods for the day
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.dayWrapper, // Define these styles
+        isSelected && styles.selectedDayWrapper,
+        state === 'disabled' && styles.disabledDayWrapper,
+      ]}
+      onPress={() => onPress(date)}
+      disabled={state === 'disabled'}
+    >
+      <Text
+        style={[
+          styles.dayNumber,
+          isSelected && styles.selectedDayNumber,
+          state === 'disabled' && styles.disabledDayNumber,
+        ]}
+      >
+        {date.day}
+      </Text>
+      {moodsForDay.length > 0 && (
+        <View style={styles.multiMoodContainer}>
+          {moodsForDay.map((mood, index) => {
+            const moodIcon = MOODS[mood]?.icon;
+            const moodColor = MOODS[mood]?.color;
+            return (
+              <MaterialCommunityIcons
+                key={`${mood}-${index}`} // Unique key
+                name={moodIcon || 'emoticon-outline'} // Fallback icon
+                size={12} // Very small icons
+                color={moodColor || '#ccc'}
+                style={styles.multiMoodIcon}
+              />
+              // Or if you prefer small colored squares:
+              // <View
+              //   key={`${mood}-${index}`}
+              //   style={[styles.miniMoodSquare, { backgroundColor: moodColor || '#ccc' }]}
+              // />
+            );
+          })}
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+};
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -242,13 +266,7 @@ export default function TabOneScreen() {
           />
           <Text style={styles.heroTitle}>Welcome to Introspect</Text>
           <Text style={styles.heroSubtitle}>Your journey of self-discovery</Text>
-          
-          {/* Daily Quote Card */}
-          <View style={styles.quoteCard}>
-            <MaterialCommunityIcons name="format-quote-open" size={20} color="#6B4EFF" />
-            <Text style={styles.quoteText}>"{currentQuote}"</Text>
-            <Text style={styles.quoteAuthor}>— {currentAuthor}</Text>
-          </View>
+          {/* Removed Daily Quote Card here */}
         </View>
       </LinearGradient>
 
@@ -260,17 +278,17 @@ export default function TabOneScreen() {
             <Text style={styles.statNumber}>{streak}</Text>
             <Text style={styles.statLabel}>Day Streak</Text>
           </View>
-          
+
           <View style={styles.statCard}>
-            <MaterialCommunityIcons 
-              name={MOODS[stats.topMood]?.icon || 'emoticon-outline'} 
-              size={24} 
-              color={MOODS[stats.topMood]?.color || '#ccc'} 
+            <MaterialCommunityIcons
+              name={MOODS[stats.topMood]?.icon || 'emoticon-outline'}
+              size={24}
+              color={MOODS[stats.topMood]?.color || '#ccc'}
             />
             <Text style={styles.statNumber}>{stats.totalEntries}</Text>
             <Text style={styles.statLabel}>Entries</Text>
           </View>
-          
+
           <View style={styles.statCard}>
             <MaterialCommunityIcons name="calendar-heart" size={24} color="#4CAF50" />
             <Text style={styles.statNumber}>{Object.keys(moodData).length}</Text>
@@ -285,28 +303,16 @@ export default function TabOneScreen() {
           <Text style={styles.sectionTitle}>Your Journey</Text>
           <Text style={styles.sectionSubtitle}>Tap any day to explore your memories</Text>
         </View>
-        
+
         <View style={styles.calendarContainer}>
-          <Calendar
+           <Calendar
             onDayPress={handleDayPress}
             style={styles.calendar}
-            markingType="custom"
+            markingType="custom" // Back to "custom"
             markedDates={getMarkedDates()}
+            dayComponent={CustomDayWithMultiMoods} // <-- Use the new day component
             theme={{
-              backgroundColor: 'transparent',
-              calendarBackground: 'white',
-              textSectionTitleColor: '#6B4EFF',
-              selectedDayBackgroundColor: '#6B4EFF',
-              selectedDayTextColor: 'white',
-              todayTextColor: '#6B4EFF',
-              dayTextColor: '#2d3436',
-              textDisabledColor: '#ddd',
-              dotColor: '#6B4EFF',
-              selectedDotColor: '#ffffff',
-              arrowColor: '#6B4EFF',
-              disabledArrowColor: '#d9e1e8',
-              monthTextColor: '#2d3436',
-              indicatorColor: '#6B4EFF',
+              // ... existing theme properties ...
               textDayFontFamily: 'System',
               textMonthFontFamily: 'System',
               textDayHeaderFontFamily: 'System',
@@ -319,26 +325,40 @@ export default function TabOneScreen() {
             }}
           />
           
+
           {/* Legend */}
-          <View style={styles.legend}>
-            <Text style={styles.legendTitle}>Mood Legend</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {Object.entries(MOODS).slice(0, 6).map(([key, mood]) => (
-                <View key={key} style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: mood.color }]} />
-                  <Text style={styles.legendText}>{key}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
+      <View style={styles.legend}>
+        <Text style={styles.legendTitle}>Mood Legend</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.legendScrollViewContent}>
+          {Object.entries(MOODS).map(([key, mood]) => (
+            <View key={key} style={styles.legendItem}>
+              <MaterialCommunityIcons
+                name={mood.icon}
+                size={20} // Slightly larger icons for the legend
+                color={mood.color}
+                style={styles.legendIcon} // Add a style for spacing
+              />
+              <Text style={styles.legendText}>{key.replace(/([A-Z])/g, ' $1').toLowerCase().replace(/^\w/, c => c.toUpperCase())}</Text>
+              {/* The .replace() part above converts 'veryHappy' to 'Very Happy' */}
+            </View>
+          ))}
+        </ScrollView>
       </View>
+    </View> 
+  </View> 
 
       {/* Quick Actions */}
       <View style={styles.quickActions}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => router.push('/specific-day?date=' + getTodayDate())}
+          onPress={() => router.push({
+            pathname: '/specific-day',
+            params: {
+              date: getTodayDate(),
+              initialTab: 'journal',
+              openForm: 'true'
+            }
+          })}
         >
           <LinearGradient
             colors={['#6B4EFF', '#8A4FFF']}
@@ -348,10 +368,10 @@ export default function TabOneScreen() {
             <Text style={styles.actionButtonText}>Add Today's Entry</Text>
           </LinearGradient>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => router.push('/journal')}
+          onPress={() => router.push('/all-entries')}
         >
           <View style={styles.secondaryActionButton}>
             <MaterialCommunityIcons name="book-open" size={24} color="#6B4EFF" />
@@ -362,190 +382,3 @@ export default function TabOneScreen() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FAFAFA',
-  },
-  heroSection: {
-    paddingTop: 60,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
-  },
-  heroContent: {
-    alignItems: 'center',
-  },
-  logo: {
-    width: 120,
-    height: 120,
-    marginBottom: 20,
-    resizeMode: 'contain',
-  },
-  heroTitle: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: 'white',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  heroSubtitle: {
-    fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 30,
-    textAlign: 'center',
-  },
-  quoteCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 16,
-    padding: 20,
-    margin: 10,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  quoteText: {
-    fontSize: 16,
-    fontStyle: 'italic',
-    color: '#2d3436',
-    textAlign: 'center',
-    marginVertical: 10,
-    lineHeight: 24,
-  },
-  quoteAuthor: {
-    fontSize: 14,
-    color: '#6B4EFF',
-    fontWeight: '600',
-  },
-  statsSection: {
-    paddingHorizontal: 20,
-    marginTop: -20,
-    marginBottom: 20,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#2d3436',
-    marginTop: 8,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#636e72',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  calendarSection: {
-    paddingHorizontal: 20,
-    marginBottom: 30,
-  },
-  sectionHeader: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#2d3436',
-    marginBottom: 5,
-  },
-  sectionSubtitle: {
-    fontSize: 16,
-    color: '#636e72',
-  },
-  calendarContainer: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  calendar: {
-    borderRadius: 16,
-  },
-  legend: {
-    marginTop: 20,
-    paddingTop: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f2f6',
-  },
-  legendTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2d3436',
-    marginBottom: 10,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 5,
-  },
-  legendText: {
-    fontSize: 12,
-    color: '#636e72',
-    textTransform: 'capitalize',
-  },
-  quickActions: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
-  actionButton: {
-    marginBottom: 15,
-  },
-  actionButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-    borderRadius: 16,
-  },
-  actionButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 10,
-  },
-  secondaryActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-    borderRadius: 16,
-    backgroundColor: 'white',
-    borderWidth: 2,
-    borderColor: '#6B4EFF',
-  },
-  secondaryActionButtonText: {
-    color: '#6B4EFF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 10,
-  },
-});

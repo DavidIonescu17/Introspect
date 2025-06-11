@@ -8,7 +8,7 @@ const styles = {
   scrollView: {
     flex: 1,
   },
-
+  
   // Header Section
   header: {
     backgroundColor: '#6B4EFF',
@@ -147,60 +147,65 @@ const styles = {
   // Objective Items
   objectiveItem: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginBottom: 16,
+    borderRadius: 15,
+    marginBottom: 15,
     padding: 20,
     elevation: 2,
-    shadowColor: '#6B4EFF',
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
-    shadowRadius: 8,
-    borderWidth: 1,
-    borderColor: '#F0EBFF',
+    shadowRadius: 3,
+    borderWidth: 0,
   },
   objectiveContent: {
     flex: 1,
   },
   addedLaterLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6B4EFF',
     fontWeight: '600',
     marginBottom: 8,
     backgroundColor: '#F0EBFF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 7,
     alignSelf: 'flex-start',
   },
   objectiveText: {
-    fontSize: 16,
-    color: '#2D3748',
-    marginBottom: 16,
-    lineHeight: 24,
+    fontSize: 15,
+    color: '#333',
+    marginBottom: 12,
+    lineHeight: 22,
   },
   completedObjectiveText: {
     textDecorationLine: 'line-through',
-    color: '#9991B1',
+    color: '#999',
   },
   objectiveActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10, // Adjusted gap for the new button size
     justifyContent: 'flex-end',
+    marginTop: 10,
   },
-  actionButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 25,
-    alignItems: 'center',
-    minWidth: 80,
-    elevation: 1,
+  actionButton: { // Renaming to `actionButton` as a general base for these
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center', // This centers content horizontally
+    justifyContent: 'center', // This centers content vertically
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 3,
   },
-  completeButton: {
-    backgroundColor: '#4CAF50',
+ completeButton: {
+    backgroundColor: '#E0D9FF', // Light purple background
+  },
+  completeButtonIcon: { // New style to hold the specific icon color
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#4CAF50', // Green icon color for complete
   },
   deleteButton: {
   padding: 8,
@@ -209,11 +214,6 @@ const styles = {
   borderWidth: 1,
   borderColor: '#FCDCDC',
 },
-  actionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
 
   // Empty State
   emptyState: {
@@ -257,34 +257,34 @@ const styles = {
   // Entry Form
   entryForm: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    borderRadius: 15, // A bit less aggressive curve, more professional
     marginBottom: 20,
+    marginHorizontal: 15, // Add horizontal margin to not touch screen edges
     elevation: 6,
-    shadowColor: '#6B4EFF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    borderWidth: 1,
-    borderColor: '#F0EBFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 }, // More subtle shadow
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    borderWidth: 0, // No border, rely on shadow for depth
   },
   formContent: {
-    padding: 24,
+    padding: 20, // Consistent internal padding
   },
   formHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 20, // Good spacing below header
   },
   formTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#2D3748',
+    color: '#333', // Slightly darker for better contrast
   },
   closeButton: {
     padding: 8,
-    backgroundColor: '#F5F3FF',
-    borderRadius: 20,
+    backgroundColor: '#F0F2F5', // Lighter, neutral background
+    borderRadius: 15, // Consistent with form
   },
 
   // Mood Selector
@@ -642,5 +642,25 @@ const styles = {
     borderRadius: 16,
     marginRight: 12,
   },
+  imageViewerOverlay: {
+  flex: 1,
+  backgroundColor: 'rgba(0, 0, 0, 0.9)',
+  justifyContent: 'center',
+  alignItems: 'center',
+  },
+  imageViewerClose: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 1,
+    padding: 10,
+  },
+  fullScreenImage: {
+    width: '90%',
+    height: '80%',
+  },
+  entryContent: {
+  // Add this style for the clickable content area
+},
 };
 export default styles;

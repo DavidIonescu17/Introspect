@@ -1,12 +1,10 @@
-
-// SpecificDay.js - Fixed version
 import styles from '../styles/specific-day.styles';
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  ScrollView, 
+import React, { useState, useEffect, useRef} from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
   Image,
   TextInput,
   Modal,
@@ -14,24 +12,24 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   Animated,
-  Dimensions, 
+  Dimensions,
   SafeAreaView,
   FlatList,
   ActivityIndicator
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  getDocs, 
-  deleteDoc, 
-  doc, 
-  updateDoc, 
-  query, 
-  orderBy, 
-  where 
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
+  updateDoc,
+  query,
+  orderBy,
+  where
 } from 'firebase/firestore';
 import CryptoJS from 'crypto-js';
 import { db } from '../../firebaseConfig';
@@ -40,7 +38,7 @@ import { getAuth } from 'firebase/auth';
 
 const ENCRYPTION_KEY = 'ezYxGHuBw5W5jKewAnJsmie52Ge14WCzk+mIW8IFD6gzl/ubFlHjGan+LbcJ2M1m';
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions['get']('window');
 const MOODS = {
   veryHappy: {
     icon: 'emoticon-excited-outline',
@@ -112,80 +110,81 @@ const MOODS = {
 
 // Encryption functions
 const encryptData = (data) => {
-  return CryptoJS.AES.encrypt(JSON.stringify(data), ENCRYPTION_KEY).toString();
+  return CryptoJS.AES['encrypt'](JSON.stringify(data), ENCRYPTION_KEY)['toString']();
 };
 
 const decryptData = (encryptedData) => {
   try {
-    const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
-    return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+    const bytes = CryptoJS.AES['decrypt'](encryptedData, ENCRYPTION_KEY);
+    return JSON.parse(bytes['toString'](CryptoJS.enc.Utf8));
   } catch (error) {
-    console.error('Decryption error:', error);
+    console['error']('Decryption error:', error);
     return null;
   }
 };
 
 export default function SpecificDay() {
-  const router = useRouter();
-  const { date } = useLocalSearchParams();
   const [objectives, setObjectives] = useState([]);
   const [newObjective, setNewObjective] = useState('');
   const [addObjectiveModalVisible, setAddObjectiveModalVisible] = useState(false);
   const [quote, setQuote] = useState('Loading...');
-  const [author, setAuthor] = useState('');
+  const [author, setAuthor, ] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [entries, setEntries] = useState([]);
+  const {date, initialTab, openForm } = useLocalSearchParams();
+  
+  // Initialize isAddingEntry to false by default
   const [isAddingEntry, setIsAddingEntry] = useState(false);
+  // Ref to track if the initial 'openForm' has been handled
+  const initialOpenHandled = useRef(false);
+
   const [entryText, setEntryText] = useState('');
   const [entryImages, setEntryImages] = useState([]);
-  const [selectedEntry, setSelectedEntry] = useState(null);
+  const [selectedEntry, setSelectedEntry] = useState(null); // Used only for the view modal
   const [selectedMood, setSelectedMood] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(false); // Flag for the form being in edit mode
+  const [editingEntryId, setEditingEntryId] = useState(null); // New state to hold the ID of the entry being edited
   const [loading, setLoading] = useState(false);
-  const [slideAnim] = useState(new Animated.Value(0));
-  const [showObjectives, setShowObjectives] = useState(true);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
 
+  const [showObjectives, setShowObjectives] = useState(initialTab !== 'journal');
   const auth = getAuth();
   const user = auth.currentUser;
   const objectivesCollection = collection(db, 'objectives');
-
+  const router = useRouter();
   // Check if the selected date is before today
   const isPastDate = new Date(date) < new Date(new Date().setHours(0, 0, 0, 0));
-  const isToday = new Date(date).toDateString() === new Date().toDateString();
-
-  // FIXED: Load entries function with better date filtering
+  const isToday = new Date(date)['toDateString']() === new Date()['toDateString']();
+// Animation value - Initialize to 0, will be updated by useEffect
+  const slideAnim = useRef(new Animated.Value(0)).current;
   const loadEntries = async () => {
     if (!user) return;
-    
+
     try {
       setLoading(true);
-      console.log('Loading entries for date:', date);
-      
       const q = query(
         collection(db, 'journal_entries'),
         where('userId', '==', user.uid),
         orderBy('createdAt', 'desc')
       );
-      
+
       const querySnapshot = await getDocs(q);
       const loadedEntries = [];
-      
-      querySnapshot.forEach((doc) => {
+
+      querySnapshot['forEach']((doc) => {
         const data = doc.data();
-        console.log('Raw document data:', data);
-        
+        console['log']('Raw document data:', data);
+
         const decryptedData = decryptData(data.encryptedContent);
-        console.log('Decrypted data:', decryptedData);
-        
+        console['log']('Decrypted data:', decryptedData);
+
         if (decryptedData) {
-          // FIXED: Better date comparison
-          const entryDateString = new Date(decryptedData.date).toISOString().split('T')[0];
-          const selectedDateString = new Date(date).toISOString().split('T')[0];
-          
-          console.log('Entry date:', entryDateString, 'Selected date:', selectedDateString);
-          
+          const entryDateString = new Date(decryptedData.date)['toISOString']()['split']('T')[0];
+          const selectedDateString = new Date(date)['toISOString']()['split']('T')[0];
+
+          console['log']('Entry date:', entryDateString, 'Selected date:', selectedDateString);
+
           if (entryDateString === selectedDateString) {
             loadedEntries.push({
               id: doc.id,
@@ -195,56 +194,56 @@ export default function SpecificDay() {
           }
         }
       });
-      
+
       // Sort entries by creation time (most recent first)
-      loadedEntries.sort((a, b) => {
+      loadedEntries['sort']((a, b) => {
         const dateA = new Date(a.createdAt);
         const dateB = new Date(b.createdAt);
         return dateB - dateA;
       });
-      
-      console.log('Loaded entries:', loadedEntries);
+
+      console['log']('Loaded entries:', loadedEntries);
       setEntries(loadedEntries);
-      
+
     } catch (error) {
-      console.error('Error loading entries:', error);
-      Alert.alert('Error', 'Failed to load journal entries');
+      console['error']('Error loading entries:', error);
+      Alert['alert']('Error', 'Failed to load journal entries');
     } finally {
       setLoading(false);
     }
   };
 
-  // FIXED: Save entry function
   const saveEntry = async () => {
     if (entryText.trim() === '' && entryImages.length === 0) {
-      Alert.alert('Empty Entry', 'Please add some content to your journal entry.');
+      Alert['alert']('Empty Entry', 'Please add some content to your journal entry.');
       return;
     }
 
     if (!selectedMood) {
-      Alert.alert('Mood Required', 'Please select how you\'re feeling today.');
+      Alert['alert']('Mood Required', 'Please select how you\'re feeling today.');
       return;
     }
 
     try {
       setLoading(true);
-      
+
       const entryData = {
         text: entryText,
         images: entryImages,
         mood: selectedMood,
-        date: new Date(date).toISOString() // Use the selected date
+        date: new Date(date)['toISOString']()
       };
 
       const encryptedContent = encryptData(entryData);
 
-      if (isEditing && selectedEntry) {
+      if (isEditing && editingEntryId) { // Use editingEntryId for update logic
         // Update existing entry
-        const docRef = doc(db, 'journal_entries', selectedEntry.id);
+        const docRef = doc(db, 'journal_entries', editingEntryId);
         await updateDoc(docRef, {
           encryptedContent: encryptedContent,
           updatedAt: new Date()
         });
+        console['log']('Entry updated successfully');
       } else {
         // Add new entry
         await addDoc(collection(db, 'journal_entries'), {
@@ -253,29 +252,29 @@ export default function SpecificDay() {
           createdAt: new Date(),
           updatedAt: new Date()
         });
+        console['log']('New entry created successfully');
       }
 
       // Reset form
       resetForm();
-      
+
       // Reload entries
       await loadEntries();
-      
+
     } catch (error) {
-      console.error('Error saving entry:', error);
-      Alert.alert('Error', 'Failed to save your journal entry. Please try again.');
+      console['error']('Error saving entry:', error);
+      Alert['alert']('Error', 'Failed to save your journal entry. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Other functions remain the same...
   const fetchQuote = async () => {
     if (isPastDate) {
       setIsLoading(false);
       return;
     }
-    
+
     try {
       setIsLoading(true);
       const apiUrl = 'https://zenquotes.io/api/random/';
@@ -286,10 +285,9 @@ export default function SpecificDay() {
         setAuthor(data[0].a);
       }
     } catch (error) {
-      console.error('Error fetching quote:', error);
+      console['error']('Error fetching quote:', error);
       setQuote('Believe in yourself.');
       setAuthor('Daily Reminder');
-      setError('Failed to fetch quote');
     } finally {
       setIsLoading(false);
     }
@@ -302,8 +300,7 @@ export default function SpecificDay() {
         const data = await getDocs(q);
         setObjectives(data.docs.map((doc) => ({ ...doc.data(), id: doc.id })));
       } catch (error) {
-        console.error('Error fetching objectives:', error);
-        setError('Failed to fetch objectives');
+        console['error']('Error fetching objectives:', error);
       }
     }
   };
@@ -322,8 +319,7 @@ export default function SpecificDay() {
         setAddObjectiveModalVisible(false);
         fetchObjectives();
       } catch (error) {
-        console.error('Error adding objective:', error);
-        setError('Failed to add objective');
+        console['error']('Error adding objective:', error);
       }
     }
   };
@@ -334,8 +330,7 @@ export default function SpecificDay() {
       await updateDoc(objectiveDoc, { completed: !completed });
       fetchObjectives();
     } catch (error) {
-      console.error('Error updating objective:', error);
-      setError('Failed to update objective');
+      console['error']('Error updating objective:', error);
     }
   };
 
@@ -345,8 +340,7 @@ export default function SpecificDay() {
       await deleteDoc(objectiveDoc);
       fetchObjectives();
     } catch (error) {
-      console.error('Error deleting objective:', error);
-      setError('Failed to delete objective');
+      console['error']('Error deleting objective:', error);
     }
   };
 
@@ -354,38 +348,40 @@ export default function SpecificDay() {
     setEntryText('');
     setEntryImages([]);
     setSelectedMood(null);
-    setSelectedEntry(null);
-    setIsAddingEntry(false);
-    setIsEditing(false);
+    setSelectedEntry(null); // Clears the entry being viewed
+    setIsAddingEntry(false); // Closes the form
+    setIsEditing(false); // Resets edit mode flag
+    setEditingEntryId(null); // Clears the ID of the entry being edited
   };
 
   const editEntry = (entry) => {
     setEntryText(entry.text);
     setEntryImages(entry.images || []);
     setSelectedMood(entry.mood);
-    setSelectedEntry(entry);
-    setIsEditing(true);
-    setIsAddingEntry(true);
+    setEditingEntryId(entry.id); // Set the ID for the saveEntry function to use for update
+    setIsEditing(true); // Flag that we are editing
+    setIsAddingEntry(true); // Open the form
+    setSelectedEntry(null); // Ensure the view modal is closed if it was open
   };
 
   const deleteEntry = (entryId) => {
-    Alert.alert(
+    Alert['alert'](
       'Delete Entry',
       'Are you sure you want to delete this journal entry? This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'delete',
           style: 'destructive',
           onPress: async () => {
             try {
               setLoading(true);
               await deleteDoc(doc(db, 'journal_entries', entryId));
               await loadEntries();
-              setSelectedEntry(null);
+              setSelectedEntry(null); // Clear selected entry after deletion
             } catch (error) {
-              console.error('Error deleting entry:', error);
-              Alert.alert('Error', 'Failed to delete the entry. Please try again.');
+              console['error']('Error deleting entry:', error);
+              Alert['alert']('Error', 'Failed to delete the entry. Please try again.');
             } finally {
               setLoading(false);
             }
@@ -395,13 +391,14 @@ export default function SpecificDay() {
     );
   };
 
-  const viewEntry = (entry) => {
+  // This function is for viewing an entry, not editing it directly
+  const viewEntryDetails = (entry) => {
     setSelectedEntry(entry);
   };
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    return date['toLocaleDateString']('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -411,7 +408,7 @@ export default function SpecificDay() {
 
   const formatTime = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', {
+    return date['toLocaleTimeString']('en-US', {
       hour: '2-digit',
       minute: '2-digit'
     });
@@ -420,7 +417,7 @@ export default function SpecificDay() {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'We need camera roll permissions to add images to your journal.');
+      Alert['alert']('Permission needed', 'We need camera roll permissions to add images to your journal.');
       return;
     }
 
@@ -447,7 +444,7 @@ export default function SpecificDay() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.moodScrollView}>
           {Object.entries(MOODS).map(([key, mood]) => {
             const isSelected = selected === key;
-            
+
             return (
               <TouchableOpacity
                 key={key}
@@ -479,18 +476,24 @@ export default function SpecificDay() {
   };
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
-
     loadEntries();
     fetchQuote();
     fetchObjectives();
-
-    return () => clearInterval(timer);
   }, [date, user]);
 
+  // This useEffect handles the initial opening of the form based on 'openForm' param
   useEffect(() => {
+    // Only process if openForm is 'true' and we haven't handled it yet for this component instance
+    if (String(openForm).trim() === 'true' && !initialOpenHandled.current) {
+        console.log('openForm is true, setting isAddingEntry to true initially.');
+        setIsAddingEntry(true);
+        initialOpenHandled.current = true; // Mark as handled
+    }
+  }, [openForm]); // This effect only reacts to changes in openForm
+
+  // This useEffect solely handles the animation based on `isAddingEntry` state
+  useEffect(() => {
+    console.log('isAddingEntry changed:', isAddingEntry);
     if (isAddingEntry) {
       Animated.timing(slideAnim, {
         toValue: 1,
@@ -504,7 +507,7 @@ export default function SpecificDay() {
         useNativeDriver: true,
       }).start();
     }
-  }, [isAddingEntry]);
+  }, [isAddingEntry, slideAnim]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -519,13 +522,13 @@ export default function SpecificDay() {
           >
             <MaterialCommunityIcons name="arrow-left" size={24} color="#333" />
           </TouchableOpacity>
-          
+
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>
               {isToday ? 'Today' : isPastDate ? 'Past Day' : 'Future Day'}
             </Text>
             <Text style={styles.headerDate}>
-              {new Date(date).toLocaleDateString('en-US', {
+              {new Date(date)['toLocaleDateString']('en-US', {
                 weekday: 'long',
                 month: 'long',
                 day: 'numeric'
@@ -611,14 +614,27 @@ export default function SpecificDay() {
                       onPress={() => updateObjective(item.id, item.completed)}
                     >
                       <Text style={styles.actionButtonText}>
-                        {item.completed ? 'Undo' : 'Complete'}
+                        {item.completed ? 'Undo' : ''}
+
+                      
                       </Text>
+                      <MaterialCommunityIcons
+                            name="check" // Changed to checkmark icon
+                            size={25} // Slightly larger icon size
+                            color="purple" // Get color from new style
+                          />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.actionButton, styles.deleteButton]}
                       onPress={() => deleteObjective(item.id)}
                     >
-                      <Text style={styles.actionButtonText}>Delete</Text>
+                      <Text style={styles.actionButtonText}></Text>
+                          
+                           <MaterialCommunityIcons
+                            name="trash-can-outline" // Trash can icon
+                            size={22} // Slightly larger icon size
+                            color="#E74C3C"  // Get color from new style
+                          />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -629,7 +645,7 @@ export default function SpecificDay() {
               <View style={styles.emptyState}>
                 <MaterialCommunityIcons name="target" size={48} color="#ccc" />
                 <Text style={styles.emptyStateText}>
-                  {isPastDate 
+                  {isPastDate
                     ? 'No objectives were set for this day. Add ones you might have forgotten.'
                     : 'No objectives set for today. Add one to get started!'}
                 </Text>
@@ -656,9 +672,9 @@ export default function SpecificDay() {
                 styles.entryForm,
                 {
                   transform: [{
-                    translateY: slideAnim.interpolate({
+                    translateY: slideAnim['interpolate']({
                       inputRange: [0, 1],
-                      outputRange: [300, 0]
+                      outputRange: [500, 0]
                     })
                   }]
                 }
@@ -735,17 +751,13 @@ export default function SpecificDay() {
             {/* Entries List */}
             <View style={styles.entriesContainer}>
               {entries.map((entry) => (
-                <TouchableOpacity
-                  key={entry.id}
-                  style={styles.entryCard}
-                  onPress={() => viewEntry(entry)}
-                  activeOpacity={0.9}
-                >
+                <View key={entry.id} style={styles.entryCard}>
                   <View style={styles.entryHeader}>
                     <Text style={styles.entryTime}>
-                      {formatTime(entry.date)}
+                      {formatTime(entry.createdAt)}
                     </Text>
                     <View style={styles.entryActions}>
+                      {/* Edit button in main list now directly opens the form */}
                       <TouchableOpacity
                         onPress={() => editEntry(entry)}
                         style={styles.editButton}
@@ -761,30 +773,37 @@ export default function SpecificDay() {
                     </View>
                   </View>
 
-                  <View style={styles.entryMood}>
-                    <MaterialCommunityIcons
-                      name={MOODS[entry.mood].icon}
-                      size={20}
-                      color={MOODS[entry.mood].color}
-                    />
-                    <Text style={[styles.entryMoodText, { color: MOODS[entry.mood].color }]}>
-                      {MOODS[entry.mood].label}
-                    </Text>
-                  </View>
-
-                  <Text style={styles.entryText} numberOfLines={3}>
-                    {entry.text}
-                  </Text>
-
-                  {entry.images && entry.images.length > 0 && (
-                    <View style={styles.entryImageIndicator}>
-                      <MaterialCommunityIcons name="image" size={16} color="#666" />
-                      <Text style={styles.imageCountText}>
-                        {entry.images.length} photo{entry.images.length > 1 ? 's' : ''}
+                  {/* Clicking the entry card now only opens the view modal */}
+                  <TouchableOpacity
+                    onPress={() => viewEntryDetails(entry)}
+                    activeOpacity={0.9}
+                    style={styles.entryContent}
+                  >
+                    <View style={styles.entryMood}>
+                      <MaterialCommunityIcons
+                        name={MOODS[entry.mood].icon}
+                        size={20}
+                        color={MOODS[entry.mood].color}
+                      />
+                      <Text style={[styles.entryMoodText, { color: MOODS[entry.mood].color }]}>
+                        {MOODS[entry.mood].label}
                       </Text>
                     </View>
-                  )}
-                </TouchableOpacity>
+
+                    <Text style={styles.entryText} numberOfLines={3}>
+                      {entry.text}
+                    </Text>
+
+                    {entry.images && entry.images.length > 0 && (
+                      <View style={styles.entryImageIndicator}>
+                        <MaterialCommunityIcons name="image" size={16} color="#666" />
+                        <Text style={styles.imageCountText}>
+                          {entry.images.length} photo{entry.images.length > 1 ? 's' : ''}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </View>
               ))}
 
               {entries.length === 0 && (
@@ -865,9 +884,9 @@ export default function SpecificDay() {
                     {formatDate(selectedEntry.date)}
                   </Text>
                   <View style={styles.entryViewActions}>
+                    {/* Edit button inside view modal now calls editEntry directly */}
                     <TouchableOpacity
                       onPress={() => {
-                        setSelectedEntry(null);
                         editEntry(selectedEntry);
                       }}
                     >
@@ -899,18 +918,47 @@ export default function SpecificDay() {
                   </View>
 
                   <Text style={styles.entryViewText}>{selectedEntry.text}</Text>
-                  
+
                   {selectedEntry.images && selectedEntry.images.length > 0 && (
                     <ScrollView horizontal style={styles.entryViewImages}>
                       {selectedEntry.images.map((image, index) => (
-                        <Image
+                        <TouchableOpacity
                           key={index}
-                          source={{ uri: image.uri }}
-                          style={styles.entryViewImage}
-                        />
+                          onPress={() => {
+                            setSelectedImage(image.uri);
+                            setImageViewerVisible(true);
+                          }}
+                        >
+                          <Image
+                            source={{ uri: image.uri }}
+                            style={styles.entryViewImage}
+                          />
+                        </TouchableOpacity>
                       ))}
                     </ScrollView>
                   )}
+                  {/* Image Viewer Modal */}
+                  <Modal
+                    visible={imageViewerVisible}
+                    transparent={true}
+                    animationType="fade"
+                  >
+                    <View style={styles.imageViewerOverlay}>
+                      <TouchableOpacity
+                        style={styles.imageViewerClose}
+                        onPress={() => setImageViewerVisible(false)}
+                      >
+                        <MaterialCommunityIcons name="close" size={30} color="#fff" />
+                      </TouchableOpacity>
+                      {selectedImage && (
+                        <Image
+                          source={{ uri: selectedImage }}
+                          style={styles.fullScreenImage}
+                          resizeMode="contain"
+                        />
+                      )}
+                    </View>
+                  </Modal>
                 </ScrollView>
               </View>
             </View>

@@ -1,144 +1,246 @@
+import { StyleSheet, Dimensions } from 'react-native';
 
-import { StyleSheet } from 'react-native';
+const { width: screenWidth } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
-    padding: 16,
+    backgroundColor: '#F8F8F8', // Light background
+    padding: 20,
   },
+  loadingText: {
+    fontSize: 18,
+    color: '#6B4EFF',
+    fontFamily: 'System', // Use default system font
+  },
+  // --- Profile Customization Styles ---
+  profileCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  profileAvatar: {
+    fontSize: 50,
+    marginRight: 15,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 50,
+    width: 80,
+    height: 80,
+    textAlign: 'center',
+    lineHeight: 80, // Center emoji vertically
+    overflow: 'hidden', // Ensure emoji fits
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileNameInput: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#DDD',
+    marginBottom: 5,
+    fontFamily: 'System',
+  },
+  profileEditHint: {
+    fontSize: 12,
+    color: '#A0AEC0',
+    fontStyle: 'italic',
+    fontFamily: 'System',
+  },
+  avatarSelectionContainer: {
+    marginTop: 10,
+    marginBottom: 10,
+    alignItems: 'flex-start', // Align title to left
+    width: '100%',
+  },
+  avatarSelectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#4A5568',
+    marginBottom: 10,
+    fontFamily: 'System',
+    marginLeft: 5, // Small indent
+  },
+  avatarOptionsScroll: {
+    paddingHorizontal: 5,
+    alignItems: 'center', // Center items vertically in scroll view
+  },
+  avatarOption: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 5,
+    backgroundColor: '#E2E8F0',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  avatarOptionSelected: {
+    borderColor: '#6B4EFF', // Highlight color for selected avatar
+    backgroundColor: '#D1FAE5', // Light green background
+  },
+  avatarText: {
+    fontSize: 28,
+  },
+  // --- Header & Quick Stats Styles ---
   headerCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 24,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 3,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 8,
+    color: '#2D3748', // Darker text for titles
+    fontFamily: 'System',
   },
   subtitle: {
     fontSize: 16,
-    color: '#6B7280',
-  },
-  currentMoodContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  currentMoodIcon: {
-    fontSize: 32,
-    marginRight: 12,
-  },
-  currentMoodLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  currentMoodText: {
-    fontSize: 14,
-    fontWeight: '500',
+    color: '#718096', // Muted text for subtitles
+    marginTop: 5,
+    fontFamily: 'System',
   },
   statsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around', // Distribute items evenly
+    flexWrap: 'wrap',
+    // gap: 10, // React Native doesn't universally support `gap` in `flex`
   },
   statCard: {
-    flex: 1,
-    borderRadius: 16,
-    padding: 16,
+    width: (screenWidth - 60) / 3.2, // Adjusted for 3 columns with some margin
+    borderRadius: 15,
+    padding: 10, // Reduced padding
     alignItems: 'center',
-    marginHorizontal: 4,
-  },
-  statIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.9,
-  },
-  chartCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 24,
+    justifyContent: 'center',
+    marginVertical: 5,
+    marginHorizontal: 2, // Small horizontal margin
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+  },
+  statIcon: {
+    fontSize: 24, // Smaller icon size
+    marginBottom: 5,
+  },
+  statValue: {
+    fontSize: 20, // Smaller value font size
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontFamily: 'System',
+  },
+  statLabel: {
+    fontSize: 12, // Smaller label font size
+    color: '#F7FAFC',
+    textAlign: 'center',
+    fontFamily: 'System',
+  },
+  // --- Chart & Mood Distribution Styles ---
+  chartCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 3,
+    alignItems: 'center', // Center content horizontally
   },
   chartHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    width: '100%',
+    marginBottom: 15,
+    paddingHorizontal: 10, // Adjust for inner padding
   },
   chartTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1F2937',
+    color: '#2D3748',
+    fontFamily: 'System',
+    flexShrink: 1, // Allow title to shrink
+    marginRight: 10, // Space from selector
   },
-  periodSelector: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 8,
-    padding: 4,
+  monthSelector: {
+    paddingVertical: 5,
   },
-  periodButton: {
+  monthButton: {
+    paddingVertical: 7,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    borderRadius: 8,
+    marginHorizontal: 4,
+    backgroundColor: '#F7FAFC',
   },
-  periodButtonSelected: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+  monthButtonSelected: {
+    backgroundColor: '#6B4EFF', // Highlight color
   },
-  periodButtonText: {
+  monthButtonText: {
     fontSize: 14,
+    color: '#718096',
     fontWeight: '500',
-    color: '#6B7280',
+    fontFamily: 'System',
   },
-  periodButtonTextSelected: {
-    color: '#8B5CF6',
+  monthButtonTextSelected: {
+    color: '#FFFFFF',
   },
   chart: {
+    marginVertical: 8,
     borderRadius: 16,
   },
+  noDataText: {
+    fontSize: 16,
+    color: '#718096',
+    textAlign: 'center',
+    paddingVertical: 20,
+    fontFamily: 'System',
+  },
   moodDistributionContainer: {
-    marginTop: 16,
+    width: '100%',
+    marginTop: 10,
   },
   moodDistributionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   moodDistributionIcon: {
     fontSize: 24,
-    marginRight: 12,
+    marginRight: 10,
+    width: 30, // Fixed width for alignment
+    textAlign: 'center',
   },
   moodDistributionContent: {
     flex: 1,
@@ -146,200 +248,183 @@ const styles = StyleSheet.create({
   moodDistributionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 5,
   },
   moodDistributionLabel: {
-    fontSize: 14,
+    fontSize: 16,
+    color: '#4A5568',
     fontWeight: '500',
-    color: '#374151',
+    fontFamily: 'System',
   },
   moodDistributionPercentage: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 16,
+    color: '#4A5568',
+    fontWeight: 'bold',
+    fontFamily: 'System',
   },
   progressBarContainer: {
     height: 8,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#E2E8F0',
     borderRadius: 4,
+    overflow: 'hidden',
   },
   progressBar: {
-    height: 8,
+    height: '100%',
     borderRadius: 4,
   },
-  moodMeterContainer: {
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  moodMeterCenter: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  moodMeterIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  moodMeterPercentage: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
-  },
-  moodMeterLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  moodButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  moodButton: {
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
-    marginHorizontal: 4,
-  },
-  moodButtonSelected: {
-    backgroundColor: '#EDE9FE',
-    transform: [{ scale: 1.1 }],
-  },
-  moodButtonIcon: {
-    fontSize: 24,
-  },
+  // --- Badges Styles (for main page preview and modal) ---
   badgesHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 15,
+    width: '100%',
   },
   badgesHeaderIcon: {
-    fontSize: 24,
-    marginRight: 12,
+    fontSize: 28,
+    marginRight: 10,
   },
   badgesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around', // Distribute items evenly
+    width: '100%',
   },
   badgeCard: {
-    width: '48%',
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 2,
+    width: (screenWidth - 80) / 2, // Two columns layout, adjusted for smaller stat cards
+    aspectRatio: 0.9, // Maintain aspect ratio, slightly taller to fit text
+    borderRadius: 15,
+    padding: 15,
+    margin: 8, // Spacing between cards
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   badgeUnlocked: {
-    borderColor: '#C7D2FE',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#6B4EFF', // Border for unlocked badges
   },
   badgeLocked: {
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
-    opacity: 0.6,
+    backgroundColor: '#F7FAFC',
+    borderColor: '#E2E8F0', // Lighter border for locked badges
   },
   badgeIcon: {
-    fontSize: 32,
-    marginBottom: 8,
+    fontSize: 40,
+    marginBottom: 5,
   },
   badgeIconLocked: {
-    opacity: 0.5,
+    color: '#A0AEC0', // Muted color for locked icons
   },
   badgeName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontSize: 16,
+    fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 5,
+    fontFamily: 'System',
   },
   badgeDescription: {
     fontSize: 12,
-    color: '#6B7280',
     textAlign: 'center',
+    color: '#718096',
+    fontFamily: 'System',
   },
   badgeTextLocked: {
-    color: '#9CA3AF',
+    color: '#A0AEC0',
   },
   badgeStar: {
-    fontSize: 16,
-    marginTop: 8,
+    fontSize: 18,
+    position: 'absolute',
+    top: 5,
+    right: 5,
   },
-  comparisonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 16,
-  },
-  comparisonCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginHorizontal: 4,
-  },
-  comparisonIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  comparisonTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  comparisonValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  comparisonSubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
+  // --- Daily Insights Styles ---
   insightsCard: {
-    backgroundColor: '#8B5CF6',
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 24,
+    backgroundColor: '#E0F2FE', // Light blue background for insights
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 3,
   },
   insightsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 15,
   },
   insightsHeaderIcon: {
-    fontSize: 24,
-    marginRight: 12,
+    fontSize: 28,
+    marginRight: 10,
+    color: '#2196F3', // Blue color for icon
   },
   insightsTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#2D3748',
+    fontFamily: 'System',
   },
   insightsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    // No specific styles needed for container, items handle layout
   },
   insightItem: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    padding: 15,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   insightTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 8,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#4A5568',
+    marginBottom: 5,
+    fontFamily: 'System',
   },
   insightText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.9,
+    fontSize: 14,
+    color: '#718096',
+    lineHeight: 20,
+    fontFamily: 'System',
+  },
+  // --- Modal Specific Styles for BadgesScreen ---
+  fullScreenModalContainer: {
+    flex: 1,
+    backgroundColor: '#F8F8F8',
+    padding: 20,
+    paddingTop: 50, // Adjust for status bar
+  },
+  modalCloseButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 10,
+    backgroundColor: '#E2E8F0',
+    marginBottom: 20,
+  },
+  modalCloseButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#4A5568',
+    fontFamily: 'System',
+  },
+  modalTitle: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#2D3748',
+    marginBottom: 20,
+    textAlign: 'center',
+    fontFamily: 'System',
   },
 });
+
 export default styles;

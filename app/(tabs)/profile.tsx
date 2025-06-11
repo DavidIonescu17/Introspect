@@ -1,5 +1,4 @@
-import styles from "../styles/profile.styles"
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,19 +6,26 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  TextInput,
+  Modal, // Import Modal for the badges screen
 } from 'react-native';
-import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
-import { 
-  getFirestore, 
-  collection, 
-  getDocs, 
-  query, 
-  orderBy, 
-  where 
+import { BarChart } from 'react-native-chart-kit';
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  where,
+  doc,
+  setDoc,
+  getDoc,
+  Timestamp, // Import Timestamp for Firebase dates
 } from 'firebase/firestore';
 import CryptoJS from 'crypto-js';
 import { db } from '../../firebaseConfig'; // Adjust path as needed
 import { getAuth } from 'firebase/auth';
+import styles from "../styles/profile.styles"; // Import styles here
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -30,25 +36,30 @@ const ENCRYPTION_KEY = 'ezYxGHuBw5W5jKewAnJsmie52Ge14WCzk+mIW8IFD6gzl/ubFlHjGan+
 const decryptData = (encryptedData) => {
   try {
     const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
-    return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+    const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
+    if (!decryptedText) {
+      console.warn('Decryption resulted in empty string, returning null.');
+      return null;
+    }
+    return JSON.parse(decryptedText);
   } catch (error) {
     console.error('Decryption error:', error);
     return null;
   }
 };
 
-// Mock mood data - this would come from your Firebase entries
+// Mood definitions with values 0-5 (for chart plotting)
 const MOODS = {
   veryHappy: { label: 'Very Happy', color: '#FFD93D', value: 5, icon: '😄' },
   happy: { label: 'Happy', color: '#4CAF50', value: 4, icon: '😊' },
   content: { label: 'Content', color: '#7ED6DF', value: 3, icon: '😌' },
   neutral: { label: 'Meh', color: '#92beb5', value: 2, icon: '😐' },
+  tired: { label: 'Tired', color: '#95a5a6', value: 2, icon: '😴' },
   anxious: { label: 'Anxious', color: '#9b59b6', value: 1, icon: '😰' },
   angry: { label: 'Angry', color: '#e74c3c', value: 1, icon: '😠' },
   sad: { label: 'Sad', color: '#7286D3', value: 1, icon: '😢' },
-  verySad: { label: 'Very Sad', color: '#b44560', value: 0, icon: '😭' },
   overwhelmed: { label: 'Overwhelmed', color: '#ffa502', value: 1, icon: '😵' },
-  tired: { label: 'Tired', color: '#95a5a6', value: 2, icon: '😴' },
+  verySad: { label: 'Very Sad', color: '#b44560', value: 0, icon: '😭' },
   hopeful: { label: 'Hopeful', color: '#00cec9', value: 4, icon: '🤗' }
 };
 
@@ -57,372 +68,873 @@ const generateMockData = () => {
   const moods = Object.keys(MOODS);
   const data = [];
   const today = new Date();
-  
+
   for (let i = 29; i >= 0; i--) {
     const date = new Date(today);
     date.setDate(date.getDate() - i);
-    const mood = moods[Math.floor(Math.random() * moods.length)];
+    const moodKey = moods[Math.floor(Math.random() * moods.length)];
     data.push({
       date: date.toISOString().split('T')[0],
-      mood: mood,
-      value: MOODS[mood].value,
-      dayName: date.toLocaleDateString('en-US', { weekday: 'short' })
+      mood: moodKey,
+      value: MOODS[moodKey].value,
+      dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
+      createdAt: date
     });
   }
   return data;
 };
 
-const MoodProfileDashboard = () => {
+// Available avatars for selection
+const AVATAR_OPTIONS = ['😊', '😎', '😇', '😌', '🚀', '🌟', '🌈', '🧠', '💡', '🌳', '🐱', '🐶', '🦊', '🐻', '🐼', '🐯'];
+
+// Define all possible badges and their properties (moved outside component for consistency)
+const ALL_BADGES = [
+  { id: 'first_entry', name: 'First Steps', description: 'Created your first journal entry', icon: '🌱', color: '#4CAF50' },
+  { id: 'consistent_logger', name: 'Consistent Logger', description: 'Recorded 7 journal entries', icon: '📝', color: '#607D8B' },
+  { id: 'dedicated_writer', name: 'Dedicated Writer', description: '50 journal entries', icon: '✍️', color: '#2196F3' },
+  { id: 'month_warrior', name: 'Month Conqueror', description: '100 journal entries', icon: '⚔️', color: '#FF5722' },
+  { id: 'reflection_guru', name: 'Reflection Guru', description: '200 journal entries', icon: '🧠', color: '#6B4EFF' },
+  { id: 'journal_master', name: 'Journal Master', description: '365 journal entries', icon: '👑', color: '#FFD700' },
+  { id: 'thousand_thoughts', name: 'Thousand Thoughts', description: '1000 journal entries', icon: '💎', color: '#8E24AA' },
+
+  { id: 'three_day_streak', name: 'Momentum Builder', description: '3-day journaling streak', icon: '✨', color: '#FFEB3B' },
+  { id: 'week_streak', name: 'Weekly Warrior', description: '7-day journaling streak', icon: '🔥', color: '#FF9800' },
+  { id: 'month_streak', name: 'Monthly Master', description: '30-day journaling streak', icon: '🗓️', color: '#E91E63' },
+  { id: 'century_streak', name: 'Century Streaker', description: '100-day journaling streak', icon: '💯', color: '#9C27B0' },
+  { id: 'year_streak', name: 'Year Champion', description: '365-day journaling streak', icon: '🏆', color: '#FF6B6B' },
+  { id: 'eternal_scribe', name: 'Eternal Scribe', description: '1000-day journaling streak', icon: '📜', color: '#8E24AA' },
+
+  { id: 'mood_explorer', name: 'Emotional Range', description: 'Logged 5 different moods', icon: '🎭', color: '#9C27B0' },
+  { id: 'emotional_spectrum', name: 'Full Spectrum', description: 'Logged all available moods', icon: '🌈', color: '#3F51B5' },
+  { id: 'mood_master', name: 'Mood Master', description: 'Logged each mood at least 10 times', icon: '🎨', color: '#795548' },
+
+  { id: 'positivity_champion', name: 'Positivity Champion', description: 'Achieved 70%+ positive moods overall', icon: '☀️', color: '#FFD93D' },
+  { id: 'sunshine_soul', name: 'Sunshine Soul', description: '80%+ positive moods overall', icon: '🌞', color: '#FFC107' },
+  { id: 'beacon_of_light', name: 'Beacon of Light', description: '90%+ positive moods overall', icon: '💫', color: '#FF9800' },
+
+  { id: 'calm_collector', name: 'Calm Collector', description: '50%+ entries are content/neutral', icon: '🧘‍♀️', color: '#8BC34A' },
+  { id: 'zen_master', name: 'Zen Master', description: '70%+ entries are content/neutral', icon: '☯️', color: '#4CAF50' },
+  { id: 'balanced_mind', name: 'Balanced Mind', description: 'Equal positive and challenging moods', icon: '⚖️', color: '#FFB74D' },
+
+  { id: 'emotional_resilience', name: 'Emotional Resilience', description: 'Experienced all challenging moods', icon: '💪', color: '#F44336' },
+  { id: 'growth_mindset', name: 'Growth Mindset', description: 'Improved mood trend over 30 days (mock)', icon: '📈', color: '#009688' },
+  { id: 'comeback_king', name: 'Comeback Champion', description: 'Bounced back from sad to happy within 3 days (mock)', icon: '🎯', color: '#FF5722' },
+
+  { id: 'early_bird', name: 'Early Bird', description: 'Journaled before 8 AM for 7 days', icon: '🌅', color: '#FFC107' },
+  { id: 'night_owl', name: 'Night Owl', description: 'Journaled after 10 PM for 7 days', icon: '🦉', color: '#673AB7' },
+  { id: 'midnight_writer', name: 'Midnight Writer', description: 'Journaled after midnight 5 times', icon: '🌙', color: '#3F51B5' },
+  { id: 'dawn_patrol', name: 'Dawn Patrol', description: 'Journaled before 6 AM 10 times', icon: '🌄', color: '#FF9800' },
+
+  { id: 'grateful_heart', name: 'Grateful Heart', description: 'Logged "hopeful" mood 20 times', icon: '💖', color: '#E91E63' },
+  { id: 'joy_seeker', name: 'Joy Seeker', description: 'Logged "very happy" mood 25 times', icon: '🎉', color: '#4CAF50' },
+  { id: 'weekend_warrior', name: 'Weekend Warrior', description: 'Journaled every weekend for a month (mock)', icon: '🎊', color: '#9C27B0' },
+  { id: 'monthly_champion', name: 'Monthly Champion', description: 'Journaled every day in a month (mock)', icon: '🏅', color: '#FFD700' },
+  { id: 'seasons_chronicler', name: 'Seasons Chronicler', description: 'Journaled in all 4 seasons (mock)', icon: '🍂', color: '#8BC34A' },
+  { id: 'mood_scientist', name: 'Mood Scientist', description: 'Tracked moods for 6 months', icon: '🔬', color: '#607D8B' },
+  { id: 'reflection_sage', name: 'Reflection Sage', description: 'Journaled for a full year', icon: '🧙‍♂️', color: '#795548' },
+
+  { id: 'mindfulness_master', name: 'Mindfulness Master', description: 'Unlocked all other achievements', icon: '🌟', color: '#FF6B6B' },
+];
+
+
+// Helper component for displaying badges (now used in both main and modal screens)
+const BadgeCard = ({ badge, isUnlocked }) => (
+  <View style={[
+    styles.badgeCard,
+    isUnlocked ? styles.badgeUnlocked : styles.badgeLocked
+  ]}>
+    <Text style={[
+      styles.badgeIcon,
+      { color: isUnlocked ? badge.color : styles.badgeIconLocked.color }
+    ]}>
+      {badge.icon}
+    </Text>
+    <Text style={[
+      styles.badgeName,
+      !isUnlocked && styles.badgeTextLocked
+    ]}>
+      {badge.name}
+    </Text>
+    <Text style={[
+      styles.badgeDescription,
+      !isUnlocked && styles.badgeTextLocked
+    ]}>
+      {badge.description}
+    </Text>
+    {isUnlocked && (
+      <Text style={styles.badgeStar}>⭐</Text>
+    )}
+  </View>
+);
+
+// New component for the dedicated Badges Screen
+const BadgesScreen = ({ badges, unlockedBadges, onClose }) => (
+  <Modal animationType="slide" transparent={false} visible={true}>
+    <ScrollView style={styles.fullScreenModalContainer}>
+      <TouchableOpacity onPress={onClose} style={styles.modalCloseButton}>
+        <Text style={styles.modalCloseButtonText}>← Back to Profile</Text>
+      </TouchableOpacity>
+      <Text style={styles.modalTitle}>All Achievements & Badges</Text>
+      <View style={styles.badgesContainer}>
+        {badges.map((badge) => {
+          const isUnlocked = unlockedBadges.includes(badge.id);
+          return (
+            <BadgeCard
+              key={badge.id}
+              badge={badge}
+              isUnlocked={isUnlocked}
+            />
+          );
+        })}
+        {unlockedBadges.length === 0 && (
+          <Text style={styles.noDataText}>No badges unlocked yet! Keep journaling to earn your first ones.</Text>
+        )}
+      </View>
+    </ScrollView>
+  </Modal>
+);
+
+const MoodProfileDashboard = ({ navigation }) => {
   const [moodData, setMoodData] = useState([]);
-  const [currentMood, setCurrentMood] = useState('happy');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [streak, setStreak] = useState(0);
-  const [selectedPeriod, setSelectedPeriod] = useState('30d');
   const [totalEntries, setTotalEntries] = useState(0);
-  const [unlockedBadges, setUnlockedBadges] = useState(['first_entry', 'week_streak', 'mood_explorer']);
-  const [entries, setEntries] = useState([]);
+  const [unlockedBadges, setUnlockedBadges] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState('');
+  const [userAvatar, setUserAvatar] = useState('');
+  const [showBadgesScreen, setShowBadgesScreen] = useState(false); // State to control badge screen visibility
+  const [isSavingProfile, setIsSavingProfile] = useState(false); // New state to manage saving status
 
   const auth = getAuth();
   const user = auth.currentUser;
+  const userId = user ? user.uid : null;
 
-  // Load real entries from Firebase
-  const loadEntries = async () => {
-    if (!user) return;
-    
+  // Function to load user profile from Firestore
+  const loadUserProfile = useCallback(async () => {
+    if (!userId) return;
     try {
-      setLoading(true);
+      const userDocRef = doc(db, 'user_profiles', userId);
+      const userDocSnap = await getDoc(userDocRef);
+      if (userDocSnap.exists()) {
+        const data = userDocSnap.data();
+        setUserName(data.name || 'Your Name');
+        setUserAvatar(data.avatar || '👤');
+      } else {
+        const defaultName = user.displayName || 'New User'; // Use user.displayName if available
+        const defaultAvatar = '👤';
+        setUserName(defaultName);
+        setUserAvatar(defaultAvatar);
+        // Only attempt to save default if userId is valid
+        if (userId) {
+            await setDoc(userDocRef, { name: defaultName, avatar: defaultAvatar, userId }, { merge: true });
+            console.log('Initial user profile created.');
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+      setUserName('Guest User');
+      setUserAvatar('👤');
+    }
+  }, [userId, user]); // Added user to dependencies
+
+  // Function to save user profile to Firestore
+  const saveUserProfile = useCallback(async (name, avatar) => {
+    if (!userId || isSavingProfile) {
+      console.log('Save profile skipped: No user ID or already saving.');
+      return; // Prevent multiple saves or saving without user ID
+    }
+    setIsSavingProfile(true); // Set saving state to true
+    try {
+      const userDocRef = doc(db, 'user_profiles', userId);
+      await setDoc(userDocRef, { name, avatar, userId }, { merge: true });
+      setUserName(name); // Update state to reflect saved name
+      setUserAvatar(avatar); // Update state to reflect saved avatar
+      console.log('User profile saved successfully!');
+    } catch (error) {
+      console.error('Error saving user profile:', error);
+      // Optionally, show a temporary error message to the user here
+    } finally {
+      setIsSavingProfile(false); // Reset saving state
+    }
+  }, [userId, isSavingProfile]); // Add isSavingProfile to dependencies
+
+  // Load real entries from Firebase and calculate streak
+  const loadEntriesAndCalculateStats = useCallback(async () => {
+    if (!userId) {
+      setMoodData(generateMockData()); // Use mock data if not logged in
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
       const q = query(
         collection(db, 'journal_entries'),
-        where('userId', '==', user.uid),
-        orderBy('createdAt', 'desc')
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc') // Reverted to DESC as per original working code
       );
-      
+
       const querySnapshot = await getDocs(q);
       const loadedEntries = [];
-      
+
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         const decryptedData = decryptData(data.encryptedContent);
         if (decryptedData) {
+          let entryDate;
+          if (data.createdAt instanceof Timestamp) {
+            entryDate = data.createdAt.toDate();
+          } else if (data.createdAt && data.createdAt.seconds) { // Fallback for old data structure
+            entryDate = new Date(data.createdAt.seconds * 1000);
+          } else { // Fallback to date in decrypted content
+            entryDate = new Date(decryptedData.date);
+          }
+
           loadedEntries.push({
             id: doc.id,
             ...decryptedData,
-            createdAt: data.createdAt
+            createdAt: entryDate,
+            date: entryDate.toISOString().split('T')[0]
           });
         }
       });
-      
-      setEntries(loadedEntries);
-      setTotalEntries(loadedEntries.length);
-      
-      // Convert entries to mood data format
-      const moodDataFromEntries = loadedEntries.map(entry => {
-        const entryDate = entry.createdAt?.seconds 
-          ? new Date(entry.createdAt.seconds * 1000) 
-          : new Date(entry.date);
-        
-        return {
-          date: entryDate.toISOString().split('T')[0],
-          mood: entry.mood,
-          value: MOODS[entry.mood]?.value || 3,
-          dayName: entryDate.toLocaleDateString('en-US', { weekday: 'short' }),
-          createdAt: entryDate
-        };
-      }).sort((a, b) => new Date(a.date) - new Date(b.date));
-      
-      setMoodData(moodDataFromEntries.length > 0 ? moodDataFromEntries : generateMockData());
-      
-      // Set current mood to the most recent entry
-      if (loadedEntries.length > 0) {
-        setCurrentMood(loadedEntries[0].mood);
+
+      // IMPORTANT: Sort loadedEntries by createdAt ascending AFTER fetching (if needed for streak/trend calculations)
+      // Firebase orderBy('desc') gives newest first. For streak and other chronological calcs, ascending is often easier.
+      const sortedLoadedEntries = [...loadedEntries].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+      setMoodData(sortedLoadedEntries); // Use sorted entries for consistency in calculations
+      setTotalEntries(sortedLoadedEntries.length);
+
+      // Calculate journaling streak
+      let currentStreak = 0;
+      if (sortedLoadedEntries.length > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const entryDates = new Set(sortedLoadedEntries.map(entry => {
+          const d = new Date(entry.createdAt);
+          d.setHours(0, 0, 0, 0);
+          return d.getTime();
+        }));
+
+        let checkDate = new Date(today);
+        let hasEntryToday = entryDates.has(checkDate.getTime());
+
+        if (hasEntryToday) {
+          currentStreak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else {
+          checkDate.setDate(checkDate.getDate() - 1);
+        }
+
+        while (entryDates.has(checkDate.getTime())) {
+          currentStreak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        }
       }
-      
+      setStreak(currentStreak);
+
     } catch (error) {
-      console.error('Error loading entries:', error);
-      // Fallback to mock data if there's an error
-      setMoodData(generateMockData());
+      console.error('Error loading entries or calculating stats:', error);
+      setMoodData(generateMockData()); // Fallback to mock data on error
+      setStreak(0);
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
 
-  // Calculate streak from real data
-  const calculateStreak = async () => {
-    if (!user) return;
-    
-    try {
-      const today = new Date();
-      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      
-      const q = query(
-        collection(db, 'journal_entries'),
-        where('userId', '==', user.uid),
-        orderBy('createdAt', 'desc')
-      );
-      
-      const querySnapshot = await getDocs(q);
-      let currentStreak = 0;
-      let checkDate = new Date(startOfToday);
-      
-      const entriesByDate = new Map();
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const entryDate = data.createdAt?.seconds 
-          ? new Date(data.createdAt.seconds * 1000)
-          : new Date();
-        const dateKey = entryDate.toDateString();
-        if (!entriesByDate.has(dateKey)) {
-          entriesByDate.set(dateKey, true);
-        }
-      });
-      
-      // Check consecutive days starting from today
-      while (true) {
-        const dateKey = checkDate.toDateString();
-        if (entriesByDate.has(dateKey)) {
-          currentStreak++;
-          checkDate.setDate(checkDate.getDate() - 1);
-        } else if (checkDate.toDateString() === startOfToday.toDateString()) {
-          // No entry today, but check yesterday
-          checkDate.setDate(checkDate.getDate() - 1);
-        } else {
-          break;
-        }
-      }
-      
-      setStreak(currentStreak);
-    } catch (error) {
-      console.error('Error calculating streak:', error);
-      setStreak(0);
-    }
-  };
+  // Get filtered data for selected month
+  const getMonthlyData = useCallback(() => {
+    return moodData.filter(entry => {
+      const entryDate = new Date(entry.createdAt);
+      return entryDate.getMonth() === selectedMonth && entryDate.getFullYear() === selectedYear;
+    });
+  }, [moodData, selectedMonth, selectedYear]);
 
+  // Initial data load and profile load effect
   useEffect(() => {
-    if (user) {
-      loadEntries();
-      calculateStreak();
+    if (userId) {
+      loadUserProfile();
+      loadEntriesAndCalculateStats();
     } else {
-      // If no user, use mock data
-      setMoodData(generateMockData());
+      setMoodData(generateMockData()); // Fallback to mock data if not logged in
+      setLoading(false);
+      setUserName('Guest User');
+      setUserAvatar('👤');
     }
-  }, [user]);
+  }, [userId, loadUserProfile, loadEntriesAndCalculateStats]);
 
-  // Calculate mood statistics
-  const getMoodStats = () => {
+  // Calculate mood statistics for distribution chart for the selected month
+  const getMoodStatsForMonth = useCallback(() => {
+    const monthlyData = getMonthlyData();
     const moodCounts = {};
     Object.keys(MOODS).forEach(mood => moodCounts[mood] = 0);
-    
-    moodData.forEach(entry => {
+
+    monthlyData.forEach(entry => {
       if (moodCounts.hasOwnProperty(entry.mood)) {
         moodCounts[entry.mood]++;
       }
     });
 
+    const totalMoodsInMonth = monthlyData.length;
     return Object.entries(moodCounts)
       .map(([mood, count]) => ({
         mood,
         count,
-        percentage: moodData.length > 0 ? ((count / moodData.length) * 100).toFixed(1) : 0,
+        percentage: totalMoodsInMonth > 0 ? ((count / totalMoodsInMonth) * 100).toFixed(1) : 0,
         ...MOODS[mood]
       }))
-      .sort((a, b) => b.count - a.count);
-  };
+      .filter(m => m.count > 0) // Only include moods that actually occurred
+      .sort((a, b) => b.count - a.count); // Sort by count descending
+  }, [getMonthlyData]);
 
-  const getAverageMood = () => {
-    if (moodData.length === 0) return 0;
-    const sum = moodData.reduce((acc, entry) => {
-      const moodValue = MOODS[entry.mood]?.value || 3;
-      return acc + moodValue;
-    }, 0);
-    return (sum / moodData.length).toFixed(1);
-  };
+  // Get most frequent mood across ALL entries (for general insights)
+  const getMostFrequentMoodGlobal = useCallback(() => {
+    if (totalEntries === 0) return { label: 'N/A', icon: '❓', color: '#92beb5' };
+    const moodCounts = {};
+    moodData.forEach(entry => {
+      if (moodCounts.hasOwnProperty(entry.mood)) {
+        moodCounts[entry.mood]++;
+      }
+    });
+    const sortedMoods = Object.entries(moodCounts).sort(([, countA], [, countB]) => countB - countA);
+    if (sortedMoods.length === 0 || sortedMoods[0][1] === 0) return { label: 'N/A', icon: '❓', color: '#92beb5' };
+    return MOODS[sortedMoods[0][0]];
+  }, [moodData, totalEntries]);
 
-  // Update badges based on real data
-  const updateBadges = () => {
+  // Get least frequent mood (among those logged) across ALL entries (for general insights)
+  const getLeastFrequentMoodGlobal = useCallback(() => {
+    if (totalEntries === 0) return { label: 'N/A', icon: '❓', color: '#92beb5' };
+    const moodCounts = {};
+    moodData.forEach(entry => {
+      if (moodCounts.hasOwnProperty(entry.mood)) {
+        moodCounts[entry.mood]++;
+      }
+    });
+    const loggedMoods = Object.entries(moodCounts).filter(([, count]) => count > 0);
+    const sortedMoods = loggedMoods.sort(([, countA], [, countB]) => countA - countB);
+    if (sortedMoods.length === 0) return { label: 'N/A', icon: '❓', color: '#92beb5' };
+    return MOODS[sortedMoods[0][0]];
+  }, [moodData, totalEntries]);
+
+  // Enhanced badge calculation logic
+  const updateBadges = useCallback(() => {
     const newBadges = [];
-    
-    if (totalEntries > 0) newBadges.push('first_entry');
-    if (streak >= 7) newBadges.push('week_streak');
-    if (getMoodStats().filter(mood => mood.count > 0).length >= 5) newBadges.push('mood_explorer');
-    if (totalEntries >= 30) newBadges.push('month_warrior');
-    if (totalEntries >= 100) newBadges.push('reflection_guru');
-    
-    // Check for positivity (70% positive moods)
-    const positiveMoods = ['veryHappy', 'happy', 'content', 'hopeful'];
-    const positiveCount = moodData.filter(entry => positiveMoods.includes(entry.mood)).length;
-    if (moodData.length > 0 && (positiveCount / moodData.length) >= 0.7) {
-      newBadges.push('positivity_champion');
-    }
-    
-    setUnlockedBadges(newBadges);
-  };
 
-  useEffect(() => {
-    updateBadges();
+    // Entry count badges
+    if (totalEntries > 0) newBadges.push('first_entry');
+    if (totalEntries >= 7) newBadges.push('consistent_logger');
+    if (totalEntries >= 50) newBadges.push('dedicated_writer');
+    if (totalEntries >= 100) newBadges.push('month_warrior');
+    if (totalEntries >= 200) newBadges.push('reflection_guru');
+    if (totalEntries >= 365) newBadges.push('journal_master');
+    if (totalEntries >= 1000) newBadges.push('thousand_thoughts');
+    if (totalEntries >= 5000) newBadges.push('legend_status'); // Assuming 'legend_status' is defined in ALL_BADGES
+
+    // Streak badges
+    if (streak >= 3) newBadges.push('three_day_streak');
+    if (streak >= 7) newBadges.push('week_streak');
+    if (streak >= 30) newBadges.push('month_streak');
+    if (streak >= 100) newBadges.push('century_streak');
+    if (streak >= 365) newBadges.push('year_streak');
+    if (streak >= 1000) newBadges.push('eternal_scribe');
+
+    // Mood variety badges
+    const distinctMoodsCount = new Set(moodData.map(entry => entry.mood)).size; // Defined here
+    if (distinctMoodsCount >= 5) newBadges.push('mood_explorer');
+    if (distinctMoodsCount === Object.keys(MOODS).length) newBadges.push('emotional_spectrum');
+
+    const moodCounts = {};
+    moodData.forEach(entry => {
+      moodCounts[entry.mood] = (moodCounts[entry.mood] || 0) + 1;
+    });
+    const allMoodsLogged10Times = Object.keys(MOODS).every(mood => (moodCounts[mood] || 0) >= 10);
+    if (allMoodsLogged10Times && distinctMoodsCount === Object.keys(MOODS).length) {
+      newBadges.push('mood_master');
+    }
+
+    // Positivity badges
+    const positiveMoods = ['veryHappy', 'happy', 'content', 'hopeful'];
+    const totalPositiveCount = moodData.filter(entry => positiveMoods.includes(entry.mood)).length;
+    const positivePercentage = moodData.length > 0 ? totalPositiveCount / moodData.length : 0;
+
+    if (positivePercentage >= 0.7) newBadges.push('positivity_champion');
+    if (positivePercentage >= 0.8) newBadges.push('sunshine_soul');
+    if (positivePercentage >= 0.9) newBadges.push('beacon_of_light');
+
+    // Calm badges
+    const calmMoods = ['content', 'neutral', 'tired'];
+    const totalCalmCount = moodData.filter(entry => calmMoods.includes(entry.mood)).length;
+    const calmPercentage = moodData.length > 0 ? totalCalmCount / moodData.length : 0;
+
+    if (calmPercentage >= 0.5) newBadges.push('calm_collector');
+    if (calmPercentage >= 0.7) newBadges.push('zen_master');
+
+    // Special mood count badges
+    const hopefulCount = moodData.filter(entry => entry.mood === 'hopeful').length;
+    const veryHappyCount = moodData.filter(entry => entry.mood === 'veryHappy').length;
+
+    if (hopefulCount >= 20) newBadges.push('grateful_heart');
+    if (veryHappyCount >= 25) newBadges.push('joy_seeker');
+
+    // Time-based badges
+    const earlyBirdDays = new Set();
+    const nightOwlDays = new Set();
+    const midnightCount = moodData.filter(entry => {
+      const hour = new Date(entry.createdAt).getHours();
+      return hour >= 0 && hour < 6; // Entries between 12 AM and 5:59 AM
+    }).length;
+    const dawnCount = moodData.filter(entry => {
+      const hour = new Date(entry.createdAt).getHours();
+      return hour >= 0 && hour < 6; // Same as midnight count, consider re-evaluating definition if different
+    }).length;
+
+    moodData.forEach(entry => {
+      const hour = new Date(entry.createdAt).getHours();
+      const dateKey = new Date(entry.createdAt).toDateString();
+
+      if (hour < 8) earlyBirdDays.add(dateKey); // Before 8 AM
+      if (hour >= 22) nightOwlDays.add(dateKey); // From 10 PM onwards
+    });
+
+    if (earlyBirdDays.size >= 7) newBadges.push('early_bird');
+    if (nightOwlDays.size >= 7) newBadges.push('night_owl');
+    if (midnightCount >= 5) newBadges.push('midnight_writer');
+    if (dawnCount >= 10) newBadges.push('dawn_patrol');
+
+    // Resilience badges
+    const challengingMoodKeys = ['sad', 'verySad', 'angry', 'anxious', 'overwhelmed'];
+    const hasAllChallenging = challengingMoodKeys.every(mood => moodData.some(entry => entry.mood === mood));
+    if (hasAllChallenging) newBadges.push('emotional_resilience');
+
+    // Balanced mind badge
+    const challengingCount = moodData.filter(entry => challengingMoodKeys.includes(entry.mood)).length;
+    if (totalEntries > 10 && Math.abs(totalPositiveCount - challengingCount) <= Math.ceil(totalEntries * 0.15)) {
+      newBadges.push('balanced_mind');
+    }
+
+    // Long-term tracking badges
+    const uniqueMonths = new Set(moodData.map(entry => `${new Date(entry.createdAt).getFullYear()}-${new Date(entry.createdAt).getMonth()}`)).size;
+    if (uniqueMonths >= 6) newBadges.push('mood_scientist');
+    if (uniqueMonths >= 12) newBadges.push('reflection_sage');
+
+    // Consistent Calm: 3-day streak of only happy/content moods (strict consecutive days)
+    let consistentCalmStreak = 0;
+    const happyContentStrictMoods = ['happy', 'content', 'veryHappy'];
+    if (moodData.length > 0) {
+      const sortedMoodData = [...moodData].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      for (let i = sortedMoodData.length - 1; i >= 0; i--) {
+        const entry = sortedMoodData[i];
+        if (happyContentStrictMoods.includes(entry.mood)) {
+          consistentCalmStreak++;
+          if (i > 0) {
+            const prevEntry = sortedMoodData[i - 1];
+            const diffDays = Math.round(Math.abs(entry.createdAt.getTime() - prevEntry.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays === 1 && happyContentStrictMoods.includes(prevEntry.mood)) {
+              // Continues streak
+            } else {
+              break; // Streak broken
+            }
+          }
+        } else {
+          break; // Streak broken
+        }
+        if (consistentCalmStreak >= 3) {
+          newBadges.push('consistent_calm');
+          break;
+        }
+      }
+    }
+
+    // Reflection Pro: Wrote entries on 5 different days of the week
+    const distinctDaysOfWeek = new Set(moodData.map(entry => new Date(entry.createdAt).getDay())).size; // 0=Sunday, 6=Saturday
+    if (distinctDaysOfWeek >= 5) newBadges.push('reflection_pro');
+
+    // Adaptive Spirit: Logged 7 different moods in one week (any 7 day rolling window)
+    const sortedMoodDataForAdaptive = [...moodData].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    for (let i = 0; i < sortedMoodDataForAdaptive.length; i++) {
+      const sevenDaysLater = new Date(sortedMoodDataForAdaptive[i].createdAt);
+      sevenDaysLater.setDate(sevenDaysLater.getDate() + 7);
+      const moodsInWindow = new Set();
+      for (let j = i; j < sortedMoodDataForAdaptive.length; j++) {
+        if (sortedMoodDataForAdaptive[j].createdAt < sevenDaysLater) {
+          moodsInWindow.add(sortedMoodDataForAdaptive[j].mood);
+        } else {
+          break;
+        }
+      }
+      if (moodsInWindow.size >= 7) {
+        newBadges.push('adaptive_spirit');
+        break;
+      }
+    }
+
+    // Mindfulness Master (All other achievements unlocked)
+    // Filter out 'mindfulness_master' itself from ALL_BADGES for this check
+    const nonMasterBadges = ALL_BADGES.filter(badge => badge.id !== 'mindfulness_master');
+    const allOtherBadgesUnlocked = nonMasterBadges.every(badge => newBadges.includes(badge.id));
+    if (allOtherBadgesUnlocked) {
+      newBadges.push('mindfulness_master');
+    }
+
+
+    setUnlockedBadges(Array.from(new Set(newBadges)));
   }, [totalEntries, streak, moodData]);
 
-  const badges = [
-    { id: 'first_entry', name: 'First Steps', description: 'Created your first journal entry', icon: '🌱', color: '#4CAF50' },
-    { id: 'week_streak', name: 'Consistency', description: '7-day journaling streak', icon: '🔥', color: '#FF9800' },
-    { id: 'mood_explorer', name: 'Emotional Range', description: 'Logged 5 different moods', icon: '🎭', color: '#9C27B0' },
-    { id: 'month_warrior', name: 'Month Warrior', description: '30 journal entries', icon: '⚔️', color: '#2196F3' },
-    { id: 'positivity_champion', name: 'Positivity Champion', description: '70% positive moods', icon: '☀️', color: '#FFD93D' },
-    { id: 'self_care', name: 'Self Care Master', description: 'Added 50 photos to entries', icon: '💝', color: '#E91E63' },
-    { id: 'reflection_guru', name: 'Reflection Guru', description: '100 journal entries', icon: '🧠', color: '#6B4EFF' },
-    { id: 'mindful_moments', name: 'Mindful Moments', description: 'Journaled for 3 months', icon: '🧘', color: '#00BCD4' }
-  ];
+  useEffect(() => {
+    if (!loading) {
+      updateBadges();
+    }
+  }, [totalEntries, streak, moodData, loading, updateBadges]);
 
-  const moodTrendData = moodData.slice(-7).map(entry => MOODS[entry.mood]?.value || 3);
-  const moodTrendLabels = moodData.slice(-7).map(entry => entry.dayName);
+  // Enhanced daily insights
+  const getDailyInsights = useCallback(() => {
+    const insights = [];
+    const monthlyData = getMonthlyData();
+    const monthName = new Date(selectedYear, selectedMonth).toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
-  const moodDistribution = getMoodStats().slice(0, 5);
+    // Ensure distinctMoods is calculated within this function or passed as a prop
+    const distinctMoodsCount = new Set(moodData.map(entry => entry.mood)).size; // Fix: Calculate here
+
+    // Streak insights
+    if (streak > 0) {
+      if (streak >= 100) {
+        insights.push({
+          title: '🔥 Incredible Dedication',
+          text: `Wow! You're on a **${streak}-day streak!** This level of consistency is truly inspiring and shows incredible commitment to self-reflection.`
+        });
+      } else if (streak >= 30) {
+        insights.push({
+          title: '🎯 Consistency Champion',
+          text: `Amazing! Your **${streak}-day streak** shows real dedication. You're building a powerful habit that will serve you well.`
+        });
+      } else if (streak >= 7) {
+        insights.push({
+          title: '📈 Building Momentum',
+          text: `Great job on your **${streak}-day streak!** You're developing a fantastic habit. Keep going!`
+        });
+      } else {
+        insights.push({
+          title: '🌱 Growing Habit',
+          text: `You're **${streak} days** into your journaling journey. Every day counts toward building this valuable habit!`
+        });
+      }
+    } else {
+      insights.push({
+        title: '🚀 Ready to Start',
+        text: `Today is a perfect day to start your journaling journey! Even a few minutes of reflection can make a big difference.`
+      });
+    }
+
+    // Monthly insights
+    if (monthlyData.length > 0) {
+      const avgMoodValue = monthlyData.reduce((sum, entry) => sum + entry.value, 0) / monthlyData.length;
+      let moodTrendLabel = 'neutral';
+      if (avgMoodValue >= 3.5) moodTrendLabel = 'positive';
+      else if (avgMoodValue <= 1.5) moodTrendLabel = 'challenging';
+
+      insights.push({
+        title: `📊 ${monthName} Overview`,
+        text: `You logged **${monthlyData.length} entries** in ${monthName}. Your overall mood trend was **${moodTrendLabel}**. ${avgMoodValue >= 3.5 ? 'Keep up the great work!' : 'Remember, all emotions are valid and temporary.'}`
+      });
+
+      // Mood pattern insights
+      const mostCommonMoodInMonth = monthlyData.reduce((acc, entry) => {
+        acc[entry.mood] = (acc[entry.mood] || 0) + 1;
+        return acc;
+      }, {});
+      const dominantMood = Object.entries(mostCommonMoodInMonth).sort(([, a], [, b]) => b - a)[0];
+
+      if (dominantMood && dominantMood[1] > 0) { // Ensure there's a dominant mood logged
+        const moodName = MOODS[dominantMood[0]]?.label;
+        const moodIcon = MOODS[dominantMood[0]]?.icon;
+        insights.push({
+          title: '🎭 Monthly Mood Pattern',
+          text: `In ${monthName}, you felt ${moodIcon} **${moodName}** most often. Understanding your patterns helps you recognize what influences your well-being.`
+        });
+      }
+    }
+
+    // Achievement insights
+    if (unlockedBadges.length > 0) {
+      insights.push({
+        title: '🏆 Your Achievements',
+        text: `You've unlocked **${unlockedBadges.length} amazing badges** so far! Your dedication to self-reflection is paying off. Tap the Badges card to see them all!`
+      });
+    }
+
+    // Motivational insights based on total entries
+    if (totalEntries >= 365) {
+      insights.push({
+        title: '🌟 Journaling Veteran',
+        text: `With over **${totalEntries} entries**, you're a true journaling veteran! Your commitment to self-awareness is admirable. Consider reviewing your journey from the beginning.`
+      });
+    } else if (totalEntries >= 100) {
+      insights.push({
+        title: '💡 Developing Wisdom',
+        text: `You've written **${totalEntries} entries**! This wealth of self-reflection is building your emotional intelligence and self-awareness.`
+      });
+    } else if (totalEntries >= 30) {
+      insights.push({
+        title: '📝 Habit Forming',
+        text: `**${totalEntries} entries** shows you're serious about journaling! You're well on your way to making this a lasting, beneficial habit.`
+      });
+    }
+
+    // Seasonal or time-based insights
+    const currentMonth = new Date().getMonth();
+    const currentSeasonMap = {
+      0: 'Winter', 1: 'Winter', 2: 'Spring', 3: 'Spring', 4: 'Spring',
+      5: 'Summer', 6: 'Summer', 7: 'Summer', 8: 'Fall', 9: 'Fall', 10: 'Fall', 11: 'Winter'
+    };
+    const currentSeason = currentSeasonMap[new Date().getMonth()];
+
+    if (selectedMonth === currentMonth && selectedYear === new Date().getFullYear()) {
+      insights.push({
+        title: `🍂 ${currentSeason} Reflection`,
+        text: `${currentSeason} can be a time of change and reflection. How has this season affected your mood and perspective recently?`
+      });
+    }
+
+    // Growth and improvement insights (if sufficient data for the month)
+    if (monthlyData.length >= 14) { // Needs at least two weeks of data for a meaningful comparison
+      const firstHalf = monthlyData.slice(0, Math.floor(monthlyData.length / 2));
+      const secondHalf = monthlyData.slice(Math.floor(monthlyData.length / 2));
+
+      const firstHalfAvg = firstHalf.reduce((sum, entry) => sum + entry.value, 0) / firstHalf.length;
+      const secondHalfAvg = secondHalf.reduce((sum, entry) => sum + entry.value, 0) / secondHalf.length;
+
+      let trendInsight = '';
+      if (secondHalfAvg > firstHalfAvg + 0.2) { // Small margin for improvement
+        trendInsight = 'Your mood trend seems to be **improving** this month! Keep focusing on what brings you joy.';
+      } else if (secondHalfAvg < firstHalfAvg - 0.2) { // Small margin for decline
+        trendInsight = 'It looks like your mood trend has **slightly declined** this month. Take some time for self-care and re-evaluation.';
+      } else {
+        trendInsight = 'Your mood has been relatively **stable** this month. Consistent reflection can help you maintain your well-being.';
+      }
+      insights.push({
+        title: '📊 Monthly Mood Trend',
+        text: trendInsight
+      });
+    }
+
+    // Early Bird / Night Owl specific insights
+    if (unlockedBadges.includes('early_bird')) {
+      insights.push({
+        title: '☀️ Morning Ritual',
+        text: `You're an **Early Bird**! Journaling early in the day can greatly influence your mindset. Keep up this powerful morning ritual.`
+      });
+    }
+    if (unlockedBadges.includes('night_owl')) {
+      insights.push({
+        title: '🌙 Evening Reflection',
+        text: `The **Night Owl** badge is yours! Reflecting in the evening can help you process your day and wind down. This is a great habit for emotional processing.`
+      });
+    }
+    if (unlockedBadges.includes('grateful_heart')) {
+        insights.push({
+            title: '💖 Heart Full of Hope',
+            text: `Your **Grateful Heart** badge shows how often you embrace hopefulness. This positive outlook is a true strength!`
+        });
+    }
+
+
+    // General insights about mood variety
+    // Using distinctMoodsCount from above
+    if (distinctMoodsCount > 5 && !unlockedBadges.includes('emotional_spectrum')) {
+        insights.push({
+            title: '🌈 Broad Emotional Range',
+            text: `You've explored a wide range of emotions in your journaling. This demonstrates great emotional awareness. Keep embracing all your feelings!`
+        });
+    }
+
+
+    return insights; // Return the accumulated insights
+  }, [totalEntries, streak, moodData, selectedMonth, selectedYear, getMonthlyData, unlockedBadges, userName]);
+
+  // Data for the monthly mood distribution bar chart
+  const moodDistributionData = getMoodStatsForMonth();
+  const barChartData = {
+    labels: moodDistributionData.map(mood => mood.icon),
+    datasets: [{
+      data: moodDistributionData.map(mood => parseInt(mood.count)), // Use count for bar height
+      colors: moodDistributionData.map(mood => (opacity = 1) => MOODS[mood.mood].color),
+    }],
+  };
 
   const chartConfig = {
     backgroundGradientFrom: '#ffffff',
     backgroundGradientTo: '#ffffff',
-    decimalPlaces: 1,
-    color: (opacity = 1) => `rgba(107, 78, 255, ${opacity})`,
+    decimalPlaces: 0,
+    color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
     labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-    style: {
-      borderRadius: 16
+    barPercentage: 0.8,
+    fillShadowGradientOpacity: 1,
+    propsForLabels: {
+      fontSize: 12,
+      fontWeight: 'bold',
     },
-    propsForDots: {
-      r: '6',
-      strokeWidth: '2',
-      stroke: '#6B4EFF'
-    }
+    formatYLabel: (yValue) => `${Math.round(yValue)}`, // Show counts on Y-axis
+    yAxisSuffix: "",
   };
 
-  const StatCard = ({ icon, value, label, gradient }) => (
-    <View style={[styles.statCard, { backgroundColor: gradient }]}>
+  const getMonths = () => {
+    const months = [];
+    const today = new Date();
+    // Go back 12 months from current month
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      months.push({
+        value: d.getMonth(),
+        year: d.getFullYear(),
+        label: d.toLocaleString('en-US', { month: 'short', year: '2-digit' }),
+      });
+    }
+    return months.reverse(); // Show from oldest to newest
+  };
+
+  const months = getMonths();
+  const dailyInsights = getDailyInsights(); // Get insights for rendering
+
+  const StatCard = ({ icon, value, label, gradient, onPress }) => (
+    <TouchableOpacity
+      style={[styles.statCard, { backgroundColor: gradient }]}
+      onPress={onPress} // Pass onPress to TouchableOpacity
+      disabled={!onPress} // Disable if no onPress is provided
+    >
       <Text style={styles.statIcon}>{icon}</Text>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-
-  const MoodButton = ({ moodKey, mood, isSelected, onPress }) => (
-    <TouchableOpacity
-      style={[
-        styles.moodButton,
-        isSelected && styles.moodButtonSelected
-      ]}
-      onPress={() => onPress(moodKey)}
-    >
-      <Text style={styles.moodButtonIcon}>{mood.icon}</Text>
     </TouchableOpacity>
   );
 
-  const BadgeCard = ({ badge, isUnlocked }) => (
-    <View style={[
-      styles.badgeCard,
-      isUnlocked ? styles.badgeUnlocked : styles.badgeLocked
-    ]}>
-      <Text style={[
-        styles.badgeIcon,
-        !isUnlocked && styles.badgeIconLocked
-      ]}>
-        {badge.icon}
-      </Text>
-      <Text style={[
-        styles.badgeName,
-        !isUnlocked && styles.badgeTextLocked
-      ]}>
-        {badge.name}
-      </Text>
-      <Text style={[
-        styles.badgeDescription,
-        !isUnlocked && styles.badgeTextLocked
-      ]}>
-        {badge.description}
-      </Text>
-      {isUnlocked && (
-        <Text style={styles.badgeStar}>⭐</Text>
-      )}
-    </View>
-  );
-
+  // Display loading indicator
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text>Loading your mood profile...</Text>
+        <Text style={styles.loadingText}>Loading your mood profile...</Text>
       </View>
     );
   }
 
+  // If showing badges screen, render it
+  if (showBadgesScreen) {
+    return <BadgesScreen badges={ALL_BADGES} unlockedBadges={unlockedBadges} onClose={() => setShowBadgesScreen(false)} />;
+  }
+
   return (
     <ScrollView style={styles.container}>
-      {/* Header with Current Mood */}
+      {/* User Profile Customization Section */}
+      <View style={styles.profileCard}>
+        <View style={styles.profileHeader}>
+          <Text style={styles.profileAvatar}>{userAvatar}</Text>
+          <View style={styles.profileInfo}>
+            <TextInput
+              style={styles.profileNameInput}
+              onChangeText={setUserName}
+              value={userName}
+              placeholder="Your Name"
+              onBlur={() => saveUserProfile(userName, userAvatar)}
+              placeholderTextColor="#A0AEC0"
+              maxLength={25}
+              editable={!isSavingProfile} // Disable input while saving
+            />
+            <Text style={styles.profileEditHint}>{isSavingProfile ? 'Saving...' : 'Tap to edit name'}</Text>
+          </View>
+        </View>
+
+        {/* Avatar Selection */}
+        <View style={styles.avatarSelectionContainer}>
+          <Text style={styles.avatarSelectionTitle}>Choose Your Avatar:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.avatarOptionsScroll}>
+            {AVATAR_OPTIONS.map((avatar) => (
+              <TouchableOpacity
+                key={avatar}
+                style={[
+                  styles.avatarOption,
+                  userAvatar === avatar && styles.avatarOptionSelected
+                ]}
+                onPress={() => saveUserProfile(userName, avatar)}
+                disabled={isSavingProfile} // Disable avatar selection while saving
+              >
+                <Text style={styles.avatarText}>{avatar}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+
+      {/* Header (without Current Mood) */}
       <View style={styles.headerCard}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.title}>Mood Profile</Text>
-            <Text style={styles.subtitle}>Track your emotional journey</Text>
-          </View>
-          <View style={styles.currentMoodContainer}>
-            <Text style={styles.currentMoodIcon}>{MOODS[currentMood]?.icon || '😊'}</Text>
-            <View>
-              <Text style={styles.currentMoodLabel}>Currently</Text>
-              <Text style={[styles.currentMoodText, { color: MOODS[currentMood]?.color || '#4CAF50' }]}>
-                {MOODS[currentMood]?.label || 'Happy'}
-              </Text>
-            </View>
+            <Text style={styles.title}>Your Mood Journey</Text>
+            <Text style={styles.subtitle}>Track your emotional patterns</Text>
           </View>
         </View>
 
-        {/* Quick Stats - Now using real data */}
+        {/* Quick Stats Cards */}
         <View style={styles.statsContainer}>
           <StatCard icon="🔥" value={streak} label="Day Streak" gradient="#8B5CF6" />
           <StatCard icon="📅" value={totalEntries} label="Total Entries" gradient="#3B82F6" />
-          <StatCard icon="📈" value={getAverageMood()} label="Avg Mood" gradient="#10B981" />
-          <StatCard icon="🏆" value={unlockedBadges.length} label="Badges" gradient="#F59E0B" />
+          <StatCard icon="🏆" value={unlockedBadges.length} label="Badges" gradient="#F59E0B" onPress={() => setShowBadgesScreen(true)} />
         </View>
       </View>
 
-      {/* Mood Trend Chart */}
+      {/* Monthly Mood Distribution Chart Section */}
       <View style={styles.chartCard}>
         <View style={styles.chartHeader}>
-          <Text style={styles.chartTitle}>7-Day Mood Trend</Text>
-          <View style={styles.periodSelector}>
-            {['7d', '30d', '90d'].map(period => (
+          <Text style={styles.chartTitle}>Monthly Mood Distribution</Text>
+          {/* Month Selector */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.monthSelector}>
+            {months.map(month => (
               <TouchableOpacity
-                key={period}
+                key={`${month.value}-${month.year}`}
                 style={[
-                  styles.periodButton,
-                  selectedPeriod === period && styles.periodButtonSelected
+                  styles.monthButton,
+                  selectedMonth === month.value && selectedYear === month.year && styles.monthButtonSelected
                 ]}
-                onPress={() => setSelectedPeriod(period)}
+                onPress={() => {
+                  setSelectedMonth(month.value);
+                  setSelectedYear(month.year);
+                }}
               >
                 <Text style={[
-                  styles.periodButtonText,
-                  selectedPeriod === period && styles.periodButtonTextSelected
+                  styles.monthButtonText,
+                  selectedMonth === month.value && selectedYear === month.year && styles.monthButtonTextSelected
                 ]}>
-                  {period}
+                  {month.label}
                 </Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
         </View>
-        {moodTrendData.length > 0 && (
-          <LineChart
-            data={{
-              labels: moodTrendLabels,
-              datasets: [{ data: moodTrendData.length > 0 ? moodTrendData : [3] }]
-            }}
+        {/* Render BarChart if data is available, otherwise show a message */}
+        {moodDistributionData.length > 0 ? (
+          <BarChart
+            data={barChartData}
             width={screenWidth - 60}
             height={220}
             chartConfig={chartConfig}
-            bezier
             style={styles.chart}
+            fromZero={true}
+            showValuesOnTopOfBars={true} // Show count values on top of bars
+            yAxisLabel=""
+            yAxisSuffix=""
           />
+        ) : (
+          <Text style={styles.noDataText}>No mood data available for {new Date(selectedYear, selectedMonth).toLocaleString('en-US', { month: 'long', year: 'numeric' })}. Start journaling!</Text>
         )}
       </View>
 
-      {/* Mood Distribution */}
+      {/* Mood Distribution Details (list with progress bars) */}
       <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>Mood Distribution</Text>
+        <Text style={styles.chartTitle}>Mood Breakdown for {new Date(selectedYear, selectedMonth).toLocaleString('en-US', { month: 'long', year: 'numeric' })}</Text>
         <View style={styles.moodDistributionContainer}>
-          {moodDistribution.map((mood, index) => (
+          {moodDistributionData.map((mood, index) => (
             <View key={mood.mood} style={styles.moodDistributionItem}>
               <Text style={styles.moodDistributionIcon}>{mood.icon}</Text>
               <View style={styles.moodDistributionContent}>
@@ -431,12 +943,12 @@ const MoodProfileDashboard = () => {
                   <Text style={styles.moodDistributionPercentage}>{mood.percentage}%</Text>
                 </View>
                 <View style={styles.progressBarContainer}>
-                  <View 
+                  <View
                     style={[
                       styles.progressBar,
-                      { 
-                        width: `${mood.percentage}%`, 
-                        backgroundColor: mood.color 
+                      {
+                        width: `${mood.percentage}%`,
+                        backgroundColor: mood.color
                       }
                     ]}
                   />
@@ -444,104 +956,28 @@ const MoodProfileDashboard = () => {
               </View>
             </View>
           ))}
+          {moodDistributionData.length === 0 && (
+            <Text style={styles.noDataText}>No mood data for this month to display breakdown.</Text>
+          )}
         </View>
       </View>
 
-      {/* Today's Mood Meter */}
-      <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>Today's Mood Meter</Text>
-        <View style={styles.moodMeterContainer}>
-          <View style={styles.moodMeterCenter}>
-            <Text style={styles.moodMeterIcon}>{MOODS[currentMood]?.icon || '😊'}</Text>
-            <Text style={styles.moodMeterPercentage}>
-              {(((MOODS[currentMood]?.value || 4) / 5) * 100).toFixed(0)}%
-            </Text>
-          </View>
-          <Text style={styles.moodMeterLabel}>{MOODS[currentMood]?.label || 'Happy'}</Text>
-          <View style={styles.moodButtonsContainer}>
-            {Object.entries(MOODS).slice(0, 5).map(([key, mood]) => (
-              <MoodButton
-                key={key}
-                moodKey={key}
-                mood={mood}
-                isSelected={currentMood === key}
-                onPress={setCurrentMood}
-              />
-            ))}
-          </View>
-        </View>
-      </View>
-
-      {/* Badges & Achievements */}
-      <View style={styles.chartCard}>
-        <View style={styles.badgesHeader}>
-          <Text style={styles.badgesHeaderIcon}>🏆</Text>
-          <Text style={styles.chartTitle}>Achievements & Badges</Text>
-        </View>
-        <View style={styles.badgesContainer}>
-          {badges.map((badge) => {
-            const isUnlocked = unlockedBadges.includes(badge.id);
-            return (
-              <BadgeCard
-                key={badge.id}
-                badge={badge}
-                isUnlocked={isUnlocked}
-              />
-            );
-          })}
-        </View>
-      </View>
-
-      {/* Period Comparison */}
-      <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>Period Comparison</Text>
-        <View style={styles.comparisonContainer}>
-          <View style={[styles.comparisonCard, { backgroundColor: '#DBEAFE' }]}>
-            <Text style={styles.comparisonIcon}>🧠</Text>
-            <Text style={styles.comparisonTitle}>This Week</Text>
-            <Text style={[styles.comparisonValue, { color: '#3B82F6' }]}>{getAverageMood()}</Text>
-            <Text style={styles.comparisonSubtitle}>Average Mood</Text>
-          </View>
-          <View style={[styles.comparisonCard, { backgroundColor: '#D1FAE5' }]}>
-            <Text style={styles.comparisonIcon}>❤️</Text>
-            <Text style={styles.comparisonTitle}>Total</Text>
-            <Text style={[styles.comparisonValue, { color: '#10B981' }]}>{totalEntries}</Text>
-            <Text style={styles.comparisonSubtitle}>Journal Entries</Text>
-          </View>
-          <View style={[styles.comparisonCard, { backgroundColor: '#EDE9FE' }]}>
-            <Text style={styles.comparisonIcon}>📈</Text>
-            <Text style={styles.comparisonTitle}>Streak</Text>
-            <Text style={[styles.comparisonValue, { color: '#8B5CF6' }]}>{streak}</Text>
-            <Text style={styles.comparisonSubtitle}>Days in a row</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Daily Insights */}
+      {/* Daily Insights Section */}
       <View style={styles.insightsCard}>
         <View style={styles.insightsHeader}>
           <Text style={styles.insightsHeaderIcon}>⚡</Text>
           <Text style={styles.insightsTitle}>Daily Insights</Text>
         </View>
         <View style={styles.insightsContainer}>
-          <View style={styles.insightItem}>
-            <Text style={styles.insightTitle}>🌟 Journaling Progress</Text>
-            <Text style={styles.insightText}>
-              {streak > 0 
-                ? `Amazing! You're on a ${streak}-day streak. Keep up the great work!`
-                : "Start your journaling journey today and build a healthy habit!"
-              }
-            </Text>
-          </View>
-          <View style={styles.insightItem}>
-            <Text style={styles.insightTitle}>📈 Mood Tracking</Text>
-            <Text style={styles.insightText}>
-              {totalEntries > 0 
-                ? `You've recorded ${totalEntries} entries with an average mood of ${getAverageMood()}/5.0`
-                : "Begin tracking your moods to see patterns and insights over time!"
-              }
-            </Text>
-          </View>
+          {dailyInsights.map((insight, index) => (
+            <View key={index} style={styles.insightItem}>
+              <Text style={styles.insightTitle}>{insight.title}</Text>
+              <Text style={styles.insightText}>{insight.text}</Text>
+            </View>
+          ))}
+          {dailyInsights.length === 0 && (
+            <Text style={styles.noDataText}>No insights available yet. Start journaling to unlock personalized insights!</Text>
+          )}
         </View>
       </View>
     </ScrollView>
