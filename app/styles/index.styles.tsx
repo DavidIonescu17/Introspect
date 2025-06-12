@@ -122,6 +122,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   calendar: {
+       arrowColor: '#6B4EFF'
   },
   legendIcon: {
     marginRight: 3, 
@@ -238,6 +239,34 @@ const styles = StyleSheet.create({
   multiMoodIcon: {
     marginHorizontal: -1.1, // Further reduced horizontal spacing
     marginBottom: -0.5, // Further reduced vertical spacing
+  },
+  toggleViewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E0E7FF', // Light background for the button
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    marginTop: 10, // Adjust positioning as needed
+    alignSelf: 'center', // Align to start of the row
+  },
+  toggleViewButtonText: {
+    marginLeft: 5,
+    color: '#6B4EFF', // Matching primary color
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  habitCountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2, // Small margin to separate from day number
+  },
+  habitCountText: {
+    fontSize: 10,
+    color: '#6B4EFF', // Color for habit count
+    fontWeight: 'bold',
+    marginRight: 2,
   },
 });
 export default styles;

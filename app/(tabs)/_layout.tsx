@@ -70,7 +70,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="all-entries"
         options={{
-          title: 'All-entris',
+          title: 'All-entries',
            headerShown: false,
            href: null,
           tabBarIcon: ({ color }) => <TabBarIcon name="user" color={color} />, 
@@ -97,13 +97,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabBarIcon name="building" color={color} />, 
         }}
       />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color }) => <TabBarIcon name="user" color={color} />, 
-        }}
-      />
+      
       <Tabs.Screen
         name="insights"
         options={{
@@ -118,6 +112,13 @@ export default function TabLayout() {
           title: 'Specific-Day',
            headerShown: false,
            href: null,
+          tabBarIcon: ({ color }) => <TabBarIcon name="user" color={color} />, 
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
           tabBarIcon: ({ color }) => <TabBarIcon name="user" color={color} />, 
         }}
       />

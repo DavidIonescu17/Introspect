@@ -1,10 +1,10 @@
 import styles from '../styles/index.styles';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
 import { TouchableOpacity, Text, ScrollView, Image, View, Dimensions, Alert } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { auth } from '../../firebaseConfig';
 import { getAuth } from 'firebase/auth';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router'; // Added useFocusEffect
 import {
   getFirestore,
   collection,
@@ -48,22 +48,74 @@ const decryptData = (encryptedData) => {
 
 export default function TabOneScreen() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [moodData, setMoodData] = useState({});
+  const [moodData, setMoodData] = useState<{ [date: string]: string[] }>({}); // Explicitly typed
+  const [dailyHabitStats, setDailyHabitStats] = useState<{ [date: string]: { completed: number, total: number } }>({}); // Added
   const [loading, setLoading] = useState(true);
+  const [isHabitView, setIsHabitView] = useState(false); // Added
 
   const user = getAuth().currentUser;
 
+  // Use useEffect for initial auth state observation
   useEffect(() => {
     const unsubscribe = getAuth().onAuthStateChanged((user) => {
       if (!user) router.replace('/');
     });
-
-    if (user) {
-      loadMoodData();
-    }
-
     return () => unsubscribe();
-  }, [user]);
+  }, []);
+
+  // Use useFocusEffect to re-fetch data whenever the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        loadMoodData();
+        fetchDailyHabitStats(); // Fetch habit stats on focus
+      }
+    }, [user]) // Depend on user, so it refetches if user changes (e.g., login/logout)
+  );
+
+  const getCleanDateString = (date: Date): string => {
+    return date.toISOString().split('T')[0];
+  };
+
+  const formatLocalYYYYMMDD = (date: Date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth()+1).padStart(2,'0');
+  const d = String(date.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+  };
+
+  // Added fetchDailyHabitStats function
+  const fetchDailyHabitStats = async () => {
+    if (!user) return;
+    try {
+      const todayKey = formatLocalYYYYMMDD(new Date());
+      const start = new Date();
+      start.setDate(start.getDate() - 365);
+      const startKey = formatLocalYYYYMMDD(start);
+
+      const q = query(
+        collection(db, 'daily_habits'),
+        where('userId', '==', user.uid),
+        where('date', '>=', startKey),
+        where('date', '<=', todayKey)      // <— now truly includes today
+      );
+      const querySnapshot = await getDocs(q);
+
+      const stats: { [date: string]: { completed: number, total: number } } = {};
+      querySnapshot.forEach(docSnap => {
+        const docData = docSnap.data();
+        const habits = docData.habits as { completed: boolean }[] || [];
+        const date = docData.date as string;
+        const completedCount = habits.filter(h => h.completed).length;
+        const totalCount = habits.length;
+        stats[date] = { completed: completedCount, total: totalCount };
+      });
+      setDailyHabitStats(stats);
+    } catch (error) {
+      console.error('Error fetching daily habit stats:', error);
+    }
+  };
+
 
   const loadMoodData = async () => {
     if (!user) return;
@@ -77,7 +129,7 @@ export default function TabOneScreen() {
       );
 
       const querySnapshot = await getDocs(q);
-      const moodByDate = {};
+      const moodByDate: { [date: string]: string[] } = {}; // Explicitly typed
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
@@ -88,7 +140,6 @@ export default function TabOneScreen() {
           if (!moodByDate[entryDate]) {
             moodByDate[entryDate] = [];
           }
-          // Add the mood to the array for that day
           moodByDate[entryDate].push(decryptedData.mood);
         }
       });
@@ -122,15 +173,16 @@ export default function TabOneScreen() {
 
   const getTodayDate = () => {
     const today = new Date();
-    const yyyy = today.getFullYear();
+    const year = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
+    return `${year}-${mm}-${dd}`;
   };
 
-  const getMarkedDates = () => {
+  // Modified getMarkedDates to handle both mood and habit views
+  const getMarkedDates = useCallback(() => {
     const todayDate = getTodayDate();
-    const marked = {
+    const marked: any = {
       [todayDate]: {
         selected: true,
         selectedColor: '#6B4EFF',
@@ -138,33 +190,59 @@ export default function TabOneScreen() {
       },
     };
 
-    Object.keys(moodData).forEach(date => {
-      const moodsForDay = moodData[date];
-      if (moodsForDay && moodsForDay.length > 0) {
-        if (date === todayDate) {
-          marked[date] = {
-            ...marked[date],
-            moods: moodsForDay, // Pass the array of moods
-          };
-        } else {
-          marked[date] = {
-            moods: moodsForDay, // Pass the array of moods
-            customStyles: {
+    if (isHabitView) {
+      Object.keys(dailyHabitStats).forEach(date => {
+        const stats = dailyHabitStats[date];
+        if (stats) { // Only mark with habit stats if a record exists in dailyHabitStats
+          if (date === todayDate) {
+            marked[date] = {
+              ...marked[date], // Preserve selected styles for today
+              habitStats: stats, // Use actual stats (could be 0/0 if habits array is empty)
+            };
+          } else {
+            marked[date] = {
+              habitStats: stats,
+              customStyles: {
                 container: {
-                    backgroundColor: 'white',
-                    borderRadius: 16,
+                  backgroundColor: 'white',
+                  borderRadius: 16,
                 },
                 text: {
-                    color: '#2d3436',
+                  color: '#2d3436',
                 }
-            }
-          };
+              }
+            };
+          }
         }
-      }
-    });
-
+      });
+    } else { // Moods view
+      Object.keys(moodData).forEach(date => {
+        const moodsForDay = moodData[date];
+        if (moodsForDay && moodsForDay.length > 0) {
+          if (date === todayDate) {
+            marked[date] = {
+              ...marked[date],
+              moods: moodsForDay,
+            };
+          } else {
+            marked[date] = {
+              moods: moodsForDay,
+              customStyles: {
+                container: {
+                  backgroundColor: 'white',
+                  borderRadius: 16,
+                },
+                text: {
+                  color: '#2d3436',
+                }
+              }
+            };
+          }
+        }
+      });
+    }
     return marked;
-  };
+  }, [isHabitView, moodData, dailyHabitStats]); // Dependencies for useCallback
 
 
   const getStreakCount = () => {
@@ -203,54 +281,63 @@ export default function TabOneScreen() {
 
   const stats = getMoodStats();
   const streak = getStreakCount();
-  const CustomDayWithMultiMoods = ({ date, state, marking, onPress }) => {
-  const isSelected = marking?.selected;
-  const moodsForDay = marking?.moods || []; // Get all moods for the day
 
-  return (
-    <TouchableOpacity
-      style={[
-        styles.dayWrapper, // Define these styles
-        isSelected && styles.selectedDayWrapper,
-        state === 'disabled' && styles.disabledDayWrapper,
-      ]}
-      onPress={() => onPress(date)}
-      disabled={state === 'disabled'}
-    >
-      <Text
+  // Modified CustomDayWithMultiMoods to conditionally render based on isHabitView
+  const CustomDayWithMultiMoods = ({ date, state, marking, onPress }) => {
+    const isSelected = marking?.selected;
+    const moodsForDay = marking?.moods || [];
+    const habitStatsForDay = marking?.habitStats; // Get habit stats for the day
+
+    return (
+      <TouchableOpacity
         style={[
-          styles.dayNumber,
-          isSelected && styles.selectedDayNumber,
-          state === 'disabled' && styles.disabledDayNumber,
+          styles.dayWrapper, // Define these styles
+          isSelected && styles.selectedDayWrapper,
+          state === 'disabled' && styles.disabledDayWrapper,
         ]}
+        onPress={() => onPress(date)}
+        disabled={state === 'disabled'}
       >
-        {date.day}
-      </Text>
-      {moodsForDay.length > 0 && (
-        <View style={styles.multiMoodContainer}>
-          {moodsForDay.map((mood, index) => {
-            const moodIcon = MOODS[mood]?.icon;
-            const moodColor = MOODS[mood]?.color;
-            return (
-              <MaterialCommunityIcons
-                key={`${mood}-${index}`} // Unique key
-                name={moodIcon || 'emoticon-outline'} // Fallback icon
-                size={12} // Very small icons
-                color={moodColor || '#ccc'}
-                style={styles.multiMoodIcon}
-              />
-              // Or if you prefer small colored squares:
-              // <View
-              //   key={`${mood}-${index}`}
-              //   style={[styles.miniMoodSquare, { backgroundColor: moodColor || '#ccc' }]}
-              // />
-            );
-          })}
-        </View>
-      )}
-    </TouchableOpacity>
-  );
-};
+        <Text
+          style={[
+            styles.dayNumber,
+            isSelected && styles.selectedDayNumber,
+            state === 'disabled' && styles.disabledDayNumber,
+          ]}
+        >
+          {date.day}
+        </Text>
+        {isHabitView ? (
+          habitStatsForDay ? ( // Show habit stats if in habit view and data exists
+            <View style={styles.habitCountContainer}>
+              <Text style={styles.habitCountText}>
+                {habitStatsForDay.completed}/{habitStatsForDay.total}
+              </Text>
+              <MaterialCommunityIcons name="check-all" size={12} color="#6B4EFF" />
+            </View>
+          ) : null // If no habit record for the day, show nothing in habit view
+        ) : (
+          moodsForDay.length > 0 && ( // Show mood icons if in mood view and moods exist
+            <View style={styles.multiMoodContainer}>
+              {moodsForDay.map((mood, index) => {
+                const moodIcon = MOODS[mood]?.icon;
+                const moodColor = MOODS[mood]?.color;
+                return (
+                  <MaterialCommunityIcons
+                    key={`${mood}-${index}`}
+                    name={moodIcon || 'emoticon-outline'}
+                    size={12}
+                    color={moodColor || '#ccc'}
+                    style={styles.multiMoodIcon}
+                  />
+                );
+              })}
+            </View>
+          )
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -266,7 +353,6 @@ export default function TabOneScreen() {
           />
           <Text style={styles.heroTitle}>Welcome to Introspect</Text>
           <Text style={styles.heroSubtitle}>Your journey of self-discovery</Text>
-          {/* Removed Daily Quote Card here */}
         </View>
       </LinearGradient>
 
@@ -302,17 +388,30 @@ export default function TabOneScreen() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Your Journey</Text>
           <Text style={styles.sectionSubtitle}>Tap any day to explore your memories</Text>
+          {/* Toggle Button */}
+          <TouchableOpacity
+            style={styles.toggleViewButton}
+            onPress={() => setIsHabitView(!isHabitView)}
+          >
+            <MaterialCommunityIcons
+              name={isHabitView ? "emoticon-outline" : "check-all"}
+              size={20}
+              color="#6B4EFF"
+            />
+            <Text style={styles.toggleViewButtonText}>
+              {isHabitView ? "Show Moods" : "Show Habits"}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.calendarContainer}>
            <Calendar
             onDayPress={handleDayPress}
             style={styles.calendar}
-            markingType="custom" // Back to "custom"
+            markingType="custom"
             markedDates={getMarkedDates()}
-            dayComponent={CustomDayWithMultiMoods} // <-- Use the new day component
+            dayComponent={CustomDayWithMultiMoods}
             theme={{
-              // ... existing theme properties ...
               textDayFontFamily: 'System',
               textMonthFontFamily: 'System',
               textDayHeaderFontFamily: 'System',
@@ -324,28 +423,28 @@ export default function TabOneScreen() {
               textDayHeaderFontSize: 14
             }}
           />
-          
 
-          {/* Legend */}
-      <View style={styles.legend}>
-        <Text style={styles.legendTitle}>Mood Legend</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.legendScrollViewContent}>
-          {Object.entries(MOODS).map(([key, mood]) => (
-            <View key={key} style={styles.legendItem}>
-              <MaterialCommunityIcons
-                name={mood.icon}
-                size={20} // Slightly larger icons for the legend
-                color={mood.color}
-                style={styles.legendIcon} // Add a style for spacing
-              />
-              <Text style={styles.legendText}>{key.replace(/([A-Z])/g, ' $1').toLowerCase().replace(/^\w/, c => c.toUpperCase())}</Text>
-              {/* The .replace() part above converts 'veryHappy' to 'Very Happy' */}
+          {/* Legend - Conditionally rendered */}
+          {!isHabitView && (
+            <View style={styles.legend}>
+              <Text style={styles.legendTitle}>Mood Legend</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.legendScrollViewContent}>
+                {Object.entries(MOODS).map(([key, mood]) => (
+                  <View key={key} style={styles.legendItem}>
+                    <MaterialCommunityIcons
+                      name={mood.icon}
+                      size={20}
+                      color={mood.color}
+                      style={styles.legendIcon}
+                    />
+                    <Text style={styles.legendText}>{key.replace(/([A-Z])/g, ' $1').toLowerCase().replace(/^\w/, c => c.toUpperCase())}</Text>
+                  </View>
+                ))}
+              </ScrollView>
             </View>
-          ))}
-        </ScrollView>
+          )}
+        </View>
       </View>
-    </View> 
-  </View> 
 
       {/* Quick Actions */}
       <View style={styles.quickActions}>
