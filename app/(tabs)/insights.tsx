@@ -63,7 +63,7 @@ const MOODS = {
   sad: { label: 'Sad', color: '#7286D3', value: 1, 'icon': 'emoticon-sad-outline' },
   verySad: { label: 'Very Sad', color: '#b44560', value: 0, icon: 'emoticon-cry-outline' },
   overwhelmed: { label: 'Overwhelmed', color: '#ffa502', value: 1, icon: 'emoticon-confused-outline' },
-  tired: { label: 'Tired', color: '#95a5a6', value: 2, icon: 'emoticon-sick-outline' },
+  tired: { label: 'Tired', color: '#95a5a6', value: 2, icon: 'emoticon-sick-outline' }, // FIXED: Added 'Tired' label
   hopeful: { label: 'Hopeful', color: '#00cec9', value: 4, icon: 'emoticon-wink-outline' }
 };
 
@@ -98,7 +98,6 @@ const HabitCalendar = ({ habitData, habitName, selectedMonth, onMonthChange, sel
   };
 
   const getFirstDayOfMonth = (year, month) => {
-    // getDay() returns 0 for Sunday, 1 for Monday, etc.
     return new Date(year, month, 1).getDay();
   };
 
@@ -117,24 +116,58 @@ const HabitCalendar = ({ habitData, habitName, selectedMonth, onMonthChange, sel
   // Add days of the month
   for (let day = 1; day <= daysInMonth; day++) {
     const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const dayData = habitData[dateKey];
+    const dayData = habitData[dateKey]; // This 'habitData' now includes { completed: boolean; wasTracked: boolean; }
 
-    // Check if the habit was tracked at all on this day
-    const wasTracked = !!dayData;
-    const completed = wasTracked ? dayData.completed : false;
+    // No need to re-calculate wasTracked or completed here.
+    // They are directly available from dayData if dayData exists.
+    // If dayData is null (for empty cells before 1st day), handle it gracefully with defaults.
+    const completed = dayData?.completed || false;
+    const wasTracked = dayData?.wasTracked || false; // Use the wasTracked from habitData
 
     calendarDays.push({
       day,
       dateKey,
       completed: completed,
-      wasTracked: wasTracked // Indicates if there's any record for this habit on this day
+      wasTracked: wasTracked
     });
   }
 
-  // Calculate streak and total completion for the displayed month
+  // Calculate streak and total completion for the displayed month ONLY
   const monthCompletedCount = calendarDays.filter(day => day?.completed).length;
   const monthTrackedCount = calendarDays.filter(day => day?.wasTracked).length;
 
+  // Calculate current month stats from the global habit data
+  const getCurrentMonthStats = () => {
+    if (!selectedHabitDetails) return { completed: 0, tracked: 0, rate: 0 };
+    
+    // Filter the habit's completion data for the current displayed month
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 0);
+    
+    let monthCompleted = 0;
+    let monthTracked = 0;
+    
+    // Use the completion data from selectedHabitDetails
+    if (selectedHabitDetails.completionData) {
+      selectedHabitDetails.completionData.forEach(entry => {
+        const entryDate = new Date(entry.date);
+        if (entryDate >= monthStart && entryDate <= monthEnd) {
+          monthTracked++;
+          if (entry.completed === 1) {
+            monthCompleted++;
+          }
+        }
+      });
+    }
+    
+    return {
+      completed: monthCompleted,
+      tracked: monthTracked,
+      rate: monthTracked > 0 ? (monthCompleted / monthTracked * 100) : 0
+    };
+  };
+
+  const monthStats = getCurrentMonthStats();
 
   // Function to navigate months
   const goToPreviousMonth = () => {
@@ -148,7 +181,6 @@ const HabitCalendar = ({ habitData, habitName, selectedMonth, onMonthChange, sel
     newMonth.setMonth(newMonth.getMonth() + 1);
     onMonthChange(newMonth);
   };
-
 
   return (
     <View style={styles.calendarContainer}>
@@ -169,6 +201,7 @@ const HabitCalendar = ({ habitData, habitName, selectedMonth, onMonthChange, sel
           <Text key={day} style={styles.calendarHeaderDay}>{day}</Text>
         ))}
       </View>
+      
       <View style={styles.calendarGrid}>
         {calendarDays.map((dayData, index) => (
           <View key={index} style={styles.calendarDay}>
@@ -177,7 +210,7 @@ const HabitCalendar = ({ habitData, habitName, selectedMonth, onMonthChange, sel
                 styles.calendarDayCell,
                 dayData.completed && styles.calendarDayCompleted,
                 dayData.wasTracked && !dayData.completed && styles.calendarDayIncomplete,
-                !dayData.wasTracked && styles.calendarDayUntracked // Style for days not tracked
+                !dayData.wasTracked && styles.calendarDayUntracked
               ]}>
                 <Text style={[
                   styles.calendarDayText,
@@ -203,19 +236,24 @@ const HabitCalendar = ({ habitData, habitName, selectedMonth, onMonthChange, sel
                     style={styles.calendarDayIcon}
                   />
                 )}
-                {/* No icon for untracked days */}
               </View>
             )}
           </View>
         ))}
       </View>
+      
       <View style={styles.calendarSummary}>
         <Text style={styles.calendarSummaryText}>
-          Completed: <Text style={styles.calendarSummaryCompleted}>{monthCompletedCount}</Text> of <Text style={styles.calendarSummaryTracked}>{monthTrackedCount}</Text> tracked days this month.
+          Completed: <Text style={styles.calendarSummaryCompleted}>{monthStats.completed}</Text> of <Text style={styles.calendarSummaryTracked}>{monthStats.tracked}</Text> tracked days this month.
         </Text>
         {selectedHabitDetails?.longestStreak > 0 && (
           <Text style={styles.calendarSummaryText}>
             Longest Streak: <Text style={styles.calendarSummaryStreak}>{selectedHabitDetails.longestStreak} days</Text>
+          </Text>
+        )}
+        {monthStats.tracked > 0 && (
+          <Text style={styles.calendarSummaryText}>
+            Monthly Rate: <Text style={styles.calendarSummaryCompleted}>{monthStats.rate.toFixed(1)}%</Text>
           </Text>
         )}
       </View>
@@ -289,7 +327,6 @@ const InsightsScreen = () => {
 
   // --- Habits Data Fetching ---
   const setupHabitsListener = useCallback(() => {
-    console.log('setupHabitsListener called.');
     if (!userId) {
       console.warn('setupHabitsListener: No user ID found.');
       setHabitsData([]);
@@ -302,10 +339,8 @@ const InsightsScreen = () => {
       orderBy('date', 'desc')
     );
 
-    console.log('setupHabitsListener: Setting up real-time listener for habits...');
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const habits = [];
-      console.log(`onSnapshot (habits): Found ${querySnapshot.docs.length} habit documents.`);
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
@@ -316,7 +351,6 @@ const InsightsScreen = () => {
         });
       });
 
-      console.log(`onSnapshot (habits): Successfully processed ${habits.length} habit entries.`);
       setHabitsData(habits);
     }, (error) => {
       console.error('onSnapshot (habits): Error listening to habits:', error);
@@ -327,14 +361,12 @@ const InsightsScreen = () => {
 
   // --- Data Fetching and Processing ---
   const setupRealtimeListener = useCallback(() => {
-    console.log('setupRealtimeListener called.');
     if (!userId) {
       console.warn('setupRealtimeListener: No user ID found. User might not be authenticated. Displaying no data.');
       setProcessedEntries([]);
       setLoading(false);
       return () => { }; // Return a no-op unsubscribe function
     }
-    console.log('setupRealtimeListener: User ID found:', userId);
 
     setLoading(true); // Indicate loading has started
     const q = query(
@@ -343,10 +375,8 @@ const InsightsScreen = () => {
       orderBy('createdAt', 'asc') // Order by date for correct trend calculation (oldest to newest)
     );
 
-    console.log('setupRealtimeListener: Setting up real-time listener for journal entries...');
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const processed = [];
-      console.log(`onSnapshot: Found ${querySnapshot.docs.length} raw journal entry documents.`);
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
@@ -413,7 +443,6 @@ const InsightsScreen = () => {
         }
       });
 
-      console.log(`onSnapshot: Successfully processed ${processed.length} valid entries. Updating state.`);
       setProcessedEntries(processed);
       setLoading(false); // Stop loading once data is processed
 
@@ -441,13 +470,11 @@ const InsightsScreen = () => {
       setProcessedEntries([]);
       setHabitsData([]);
       setAllMasterHabits([]);
-      console.log("useEffect: No user ID, skipping data load and listener setup.");
     }
 
     // Cleanup function: this will be called when the component unmounts
     // or before the effect re-runs (if dependencies change).
     return () => {
-      console.log("useEffect cleanup: Unsubscribing from Firestore listeners.");
       unsubscribeJournal();
       unsubscribeHabits();
     };
@@ -491,109 +518,109 @@ const InsightsScreen = () => {
     const habitPerformanceOverTime: { [habitName: string]: { date: string; completed: number; }[] } = {};
     const habitLoadAnalysis: { [habitName: string]: { date: string; totalHabits: number; completedHabits: number; thisHabitCompleted: boolean; }[] } = {};
 
-    Array.from(allHabits).forEach(habitName => {
-      const completionData = [];
-      const loadData = [];
-      let totalDaysTrackedForHabit = 0;
-      let completedDaysForHabit = 0;
+    // Replace the habit analytics calculation section in your getHabitAnalytics useMemo
+// This goes around line 280 in your InsightsScreen component
 
-      // Filter allMasterHabits to get details for the current habitName
-      const habitDetails = allMasterHabits.find(h => h.name === habitName);
+Array.from(allHabits).forEach(habitName => {
+  const completionData = [];
+  const loadData = [];
+  let totalDaysTrackedForHabit = 0;
+  let completedDaysForHabit = 0; // This was never being incremented!
 
+  // Filter allMasterHabits to get details for the current habitName
+  const habitDetails = allMasterHabits.find(h => h.name === habitName);
 
-      const sortedDates = Object.keys(habitsByDate).sort(); // Sort dates for streak calculation
+  const sortedDates = Object.keys(habitsByDate).sort(); // Sort dates for streak calculation
 
-      let currentStreak = 0;
-      let longestStreak = 0;
-      let tempStreak = 0;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayString = today.toISOString().split('T')[0];
+  let currentStreak = 0;
+  let longestStreak = 0;
+  let tempStreak = 0;
 
-
-      // Iterate from the most recent date backwards for streak
-      for (let i = sortedDates.length - 1; i >= 0; i--) {
-        const dateKey = sortedDates[i];
-        const dayHabits = habitsByDate[dateKey];
-
-        // Only consider days where this specific habit was tracked
-        if (dayHabits[habitName]) {
-          totalDaysTrackedForHabit++;
-          const completed = dayHabits[habitName].completed;
-          if (completed) {
-            tempStreak++;
-          } else {
-            // If tracked but not completed, break current streak
-            longestStreak = Math.max(longestStreak, tempStreak);
-            tempStreak = 0;
-          }
-        } else {
-          // If habit not tracked on this day, it breaks the streak UNLESS it's a day after the last tracked day and today
-          // This logic is simplified; for a true streak, one might need to ensure consecutive dates without gaps for *any* tracking.
-          // For now, assuming any untracked day breaks the visible streak, but it might be more complex.
-          // For a robust streak, you need to check if the _previous_ day (date - 1) was completed.
-        }
-
-        // Add to completion data for performance chart
-        if (dayHabits[habitName]) {
-          completionData.push({
-            date: dateKey,
-            completed: dayHabits[habitName].completed ? 1 : 0
-          });
-        }
-
-        // Add to load data
-        const totalHabitsForDay = Object.keys(dayHabits).length;
-        const completedHabitsForDay = Object.values(dayHabits).filter(h => h.completed).length;
-        loadData.push({
-          date: dateKey,
-          totalHabits: totalHabitsForDay,
-          completedHabits: completedHabitsForDay,
-          thisHabitCompleted: dayHabits[habitName]?.completed || false
-        });
-      }
-      longestStreak = Math.max(longestStreak, tempStreak); // Capture streak ending at start of data
-
-      // Re-calculate current streak accurately from today backwards
-      currentStreak = 0;
-      let checkDate = new Date(today);
-      let foundFirstTrackedDay = false; // To ensure we only count from first tracked day backwards
-      while (true) {
-        const dateString = checkDate.toISOString().split('T')[0];
-        const dayRecord = habitsByDate[dateString]?.[habitName];
-
-        if (dayRecord) { // If habit was tracked on this day
-          foundFirstTrackedDay = true;
-          if (dayRecord.completed) {
-            currentStreak++;
-          } else { // Tracked but not completed, streak ends
-            break;
-          }
-        } else if (foundFirstTrackedDay) { // If it was untracked *after* we started counting streak, streak ends
-          break;
-        }
-
-        // Move to previous day
-        checkDate.setDate(checkDate.getDate() - 1);
-
-        // Stop if we go too far back (e.g., beyond the oldest entry or predefined limit)
-        if (checkDate.getTime() < new Date('2023-01-01').getTime()) break;
+  // First pass: collect all completion data and calculate totals
+  sortedDates.forEach(dateKey => {
+    const dayHabits = habitsByDate[dateKey];
+    
+    if (dayHabits[habitName]) {
+      totalDaysTrackedForHabit++;
+      const completed = dayHabits[habitName].completed;
+      
+      // THIS WAS MISSING - increment completed days counter
+      if (completed) {
+        completedDaysForHabit++;
       }
 
+      // Add to completion data for performance chart
+      completionData.push({
+        date: dateKey,
+        completed: completed ? 1 : 0
+      });
 
-      habitCompletionRates[habitName] = {
-        rate: totalDaysTrackedForHabit > 0 ? (completedDaysForHabit / totalDaysTrackedForHabit) * 100 : 0,
-        completedDays: completedDaysForHabit,
-        totalDays: totalDaysTrackedForHabit,
-        completionData: completionData.reverse(), // Reverse to be chronological for charts
-        currentStreak: currentStreak,
-        longestStreak: longestStreak,
-        details: habitDetails || { id: '', name: habitName, isCustom: false } // Include original details
-      };
+      // Calculate streaks in chronological order
+      if (completed) {
+        tempStreak++;
+        longestStreak = Math.max(longestStreak, tempStreak);
+      } else {
+        tempStreak = 0; // Reset streak on incomplete day
+      }
+    }
 
-      habitPerformanceOverTime[habitName] = completionData.reverse();
-      habitLoadAnalysis[habitName] = loadData.reverse();
+    // Add to load data (regardless of whether this habit was tracked)
+    const totalHabitsForDay = Object.keys(dayHabits).length;
+    const completedHabitsForDay = Object.values(dayHabits).filter(h => h.completed).length;
+    loadData.push({
+      date: dateKey,
+      totalHabits: totalHabitsForDay,
+      completedHabits: completedHabitsForDay,
+      thisHabitCompleted: dayHabits[habitName]?.completed || false
     });
+  });
+
+  // Calculate current streak (from most recent date backwards)
+  // Calculate current streak (from most recent date backwards)
+currentStreak = 0;
+let streakOngoing = true;
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+let reversedDates = [...sortedDates].reverse();
+
+for (let i = 0; i < reversedDates.length && streakOngoing; i++) {
+  const dateKey = reversedDates[i];
+  const dateObj = new Date(dateKey);
+  dateObj.setHours(0, 0, 0, 0);
+
+  // Only count days up to today, ignore future days
+  if (dateObj.getTime() > today.getTime()) continue;
+
+  const dayRecord = habitsByDate[dateKey]?.[habitName];
+
+  if (dayRecord && dayRecord.completed) {
+    // Only count completed days for the streak
+    currentStreak++;
+  } else if (dayRecord && !dayRecord.completed) {
+    // If day was tracked but not completed, streak ends
+    streakOngoing = false;
+  } else if (!dayRecord) {
+    // If day is not tracked and it's before today, streak ends
+    if (dateObj.getTime() < today.getTime()) {
+      streakOngoing = false;
+    }
+  }
+  // If today is not tracked, we just won't count it as part of the streak (just like longest)
+}
+
+  habitCompletionRates[habitName] = {
+    rate: totalDaysTrackedForHabit > 0 ? (completedDaysForHabit / totalDaysTrackedForHabit) * 100 : 0,
+    completedDays: completedDaysForHabit,
+    totalDays: totalDaysTrackedForHabit,
+    completionData: completionData, // Already in chronological order
+    currentStreak: currentStreak,
+    longestStreak: longestStreak,
+    details: habitDetails || { id: '', name: habitName, isCustom: false }
+  };
+
+  habitPerformanceOverTime[habitName] = completionData;
+  habitLoadAnalysis[habitName] = loadData;
+});
 
     return {
       habitsByDate,
@@ -653,9 +680,6 @@ const InsightsScreen = () => {
       dataValues.push(avg);
     }
 
-    console.log(`getTrendData for ${type} over ${days} days. Labels: ${labels.length}, Data points: ${dataValues.length}.`);
-    console.log(`Chart data for ${type}:`, { labels, datasets: [{ data: dataValues }] });
-
     return {
       labels,
       datasets: [{
@@ -714,15 +738,11 @@ const InsightsScreen = () => {
       iconComponent?: React.ReactNode;
     }[] = [];
     const totalEntries = processedEntries.length;
-
-    console.log(`getInsights: Processing ${totalEntries} entries for insights.`);
-
     if (totalEntries === 0 && habitsData.length === 0) {
       insights.push({
         title: '🚀 Ready to Start Your Journey',
         text: `It looks like you haven't logged any entries or habits yet. Once you start journaling and tracking habits, we'll begin to unlock personalized insights and trend data for you here!`
       });
-      console.log("getInsights: No entries or habits found. Displaying default insight.");
       return insights.map(insight => ({
         ...insight,
         title: String(insight.title || ''),
@@ -894,130 +914,171 @@ const InsightsScreen = () => {
     setSelectedMonth(newMonth);
   }, []);
 
-
   const renderChart = () => {
-    let data;
-    let chartConfig = {
-      backgroundColor: '#ffffff',
-      backgroundGradientFrom: '#ffffff',
-      backgroundGradientTo: '#ffffff',
-      decimalPlaces: 2,
-      color: (opacity = 1) => `rgba(107, 78, 255, ${opacity})`,
-      labelColor: (opacity = 1) => `rgba(45, 52, 54, ${opacity})`,
-      propsForDots: {
-        r: '4',
-        strokeWidth: '2',
-        stroke: '#6B4EFF',
-      },
-      linejoinType: 'round' as const, // Specify joinType for smooth lines
-      propsForBackgroundLines: {
-        strokeDasharray: '0', // No dashed lines for background grid
-        stroke: '#e0e0e0',
-      },
-      paddingLeft: 30, // Keep this as it fixed the cutoff
-      // ADDED: yAxis specific properties
-      yAxisMin: null, // Will be set conditionally
-      yAxisMax: null, // Will be set conditionally
-    };
-    let yAxisLabel = '';
-    let hasData = true;
-
-    
-     switch (chartType) {
-      case 'mood':
-        data = moodTrendData;
-        yAxisLabel = 'Mood Score';
-        chartConfig.yAxisInterval = 1;
-        chartConfig.decimalPlaces = 0;
-        chartConfig.color = (opacity = 1) => `rgba(107, 78, 255, ${opacity})`;
-        chartConfig.propsForDots.stroke = '#6B4EFF';
-        chartConfig.yAxisMin = 0; // Mood should start from 0
-        chartConfig.yAxisMax = 5; // Mood goes up to 5
-        break;
-      case 'sentiment':
-        data = sentimentTrendData;
-        yAxisLabel = 'Sentiment Score';
-        chartConfig.yAxisInterval = 0.5; // This is the interval for -1.0, -0.5, 0.0, 0.5, 1.0
-        chartConfig.decimalPlaces = 1;  // One decimal place for formatting
-        chartConfig.color = (opacity = 1) => `rgba(0, 188, 212, ${opacity})`;
-        chartConfig.propsForDots.stroke = '#00BCD4';
-        chartConfig.yAxisMin = -1; // Explicitly set the minimum for sentiment
-        chartConfig.yAxisMax = 1;  // Explicitly set the maximum for sentiment
-        hasData = data.datasets[0].data.some(val => val !== null);
-        break;
-      default:
-        data = { labels: [], datasets: [{ data: [] }] };
-        hasData = false;
-    }
-
-
-    if (!hasData) {
-      return (
-        <View style={styles.noDataContainer}>
-          <MaterialCommunityIcons name="chart-line-variant" size={50} color="#ccc" />
-          <Text style={styles.noDataText}>
-            No {chartType} data available for this period. Add entries to see your trends!
-          </Text>
-        </View>
-      );
-    }
-
-     return (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentOffset={{ x: chartWidth - (screenWidth - 40), y: 0 }}>
-        <LineChart
-          data={data}
-          width={chartWidth}
-          height={220}
-          yAxisLabel={yAxisLabel}
-          yAxisSuffix=""
-          // REMOVED yAxisInterval from here, as it's now handled by formatYLabel for sentiment
-          chartConfig={chartConfig}
-          bezier
-          style={styles.chart}
-          withVerticalLabels={true}
-          withHorizontalLabels={true}
-          fromZero={false} // Always false for sentiment, to allow negative y-axis
-          // MODIFIED: segments and ADDED formatYLabel
-          segments={chartType === 'mood' ? 5 : (chartType === 'sentiment' ? 4 : undefined)} // 4 segments for sentiment (-1, -0.5, 0, 0.5, 1)
-          formatYLabel={(label) => {
-            if (chartType === 'sentiment') {
-              // Ensure labels are always formatted as -1.0, -0.5, 0.0, 0.5, 1.0
-              // The library might pass values slightly off due to floating point or internal calculations.
-              // We force it to snap to the desired intervals.
-              const value = parseFloat(label);
-              if (isNaN(value)) return ''; // Handle non-numeric labels
-              
-              // Round to the nearest 0.5 for clean labels
-              const roundedValue = Math.round(value * 2) / 2;
-              return roundedValue.toFixed(1); // Format to one decimal place
-            }
-            return label; // Return label as is for other chart types
-          }}
-        />
-      </ScrollView>
-    );
+  let data;
+  let chartConfig = {
+    backgroundColor: '#ffffff',
+    backgroundGradientFrom: '#ffffff',
+    backgroundGradientTo: '#ffffff',
+    decimalPlaces: 2,
+    color: (opacity = 1) => `rgba(0,0,0,${opacity})`,
+    labelColor: (opacity = 1) => `rgba(45, 52, 54, ${opacity})`,
+    propsForDots: {
+      r: '4',
+      strokeWidth: '2',
+      stroke: '#6B4EFF',
+    },
+    linejoinType: 'round' as const,
+    propsForBackgroundLines: {
+      strokeDasharray: '0',
+      stroke: '#e0e0e0',
+    },
+    paddingLeft: 70, // Keep this increased for now
+    paddingRight: 20,
   };
 
+  let yAxisLabel = '';
+  let hasData = true;
+  let lineChartSpecificProps: {
+    yAxisInterval?: number;
+    yAxisMin?: number;
+    yAxisMax?: number;
+    fromZero: boolean;
+    segments: number;
+    formatYLabel?: (label: string) => string;
+    withCustomYAxisLabels?: boolean; // Add this prop to the type definition
+    yAxisLabels?: string[];         // Add this prop to the type definition
+  };
 
+  // --- DECLARE CUSTOM Y-AXIS LABEL ARRAYS HERE (OUTSIDE SWITCH) ---
+  let customSentimentYLabels: string[] | undefined;
+  let customMoodYLabels: string[] | undefined; // If you plan to use it for mood too
+
+  switch (chartType) {
+    case 'mood':
+      data = moodTrendData;
+      chartConfig.decimalPlaces = 0;
+      chartConfig.color = (opacity = 1) => `rgba(107, 78, 255, ${opacity})`;
+      chartConfig.propsForDots.stroke = '#6B4EFF';
+
+      // --- MOOD: Prepare custom labels if needed (optional for mood, but good for consistency) ---
+      customMoodYLabels = ['0', '1', '2', '3', '4', '5'];
+
+      lineChartSpecificProps = {
+        fromZero: true,
+        segments: 4,
+        yAxisMin: 0,
+        yAxisMax: 5,
+        yAxisInterval: 1,
+        formatYLabel: (label) => {
+            return Math.round(parseFloat(label)).toString();
+        },
+        // withCustomYAxisLabels: true, // Uncomment if you want to force these for mood too
+        // yAxisLabels: customMoodYLabels,
+      };
+      break;
+
+    case 'sentiment':
+      data = sentimentTrendData;
+      chartConfig.decimalPlaces = 1;
+      chartConfig.color = (opacity = 1) => `rgba(0, 188, 212, ${opacity})`;
+      chartConfig.propsForDots.stroke = '#00BCD4';
+
+      // --- SENTIMENT: Prepare custom labels ---
+      customSentimentYLabels = ['-1.0', '-0.5', '0.0', '0.5', '1.0']; // Explicit strings
+
+      lineChartSpecificProps = {
+        fromZero: false,
+        segments: 4,
+        yAxisMin: -1,
+        yAxisMax: 1,
+        yAxisInterval: 0.5,
+        formatYLabel: (label) => {
+            return parseFloat(label).toFixed(1);
+        },
+        withCustomYAxisLabels: true, // Activate custom labels for sentiment
+        yAxisLabels: customSentimentYLabels, // Assign the prepared labels
+      };
+      hasData = data.datasets[0].data.some(val => val !== null);
+      break;
+
+    default:
+      data = { labels: [], datasets: [{ data: [] }] };
+      hasData = false;
+      lineChartSpecificProps = {
+        fromZero: true,
+        segments: 1,
+      };
+  }
+
+  if (!hasData) {
+    return (
+      <View style={styles.noDataContainer}>
+        <MaterialCommunityIcons name="chart-line-variant" size={50} color="#ccc" />
+        <Text style={styles.noDataText}>
+          No {chartType} data available for this period. Add entries to see your trends!
+        </Text>
+      </View>
+    );
+  }
+  // Remove the global formatYLabel as it's now part of lineChartSpecificProps
+  // const formatYLabel = (label) => { /* ... */ };
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentOffset={{ x: chartWidth - (screenWidth - 40), y: 0 }}
+    >
+      <LineChart
+        data={data}
+        width={chartWidth}
+        height={220}
+        yAxisLabel={yAxisLabel}
+        yAxisSuffix=""
+        yLabelsOffset={1.3} 
+        fromZero={true}
+        chartConfig={chartConfig}
+        bezier
+        style={styles.chart}
+        withVerticalLabels={true}
+        withHorizontalLabels={true}
+        {...lineChartSpecificProps}
+        
+        // Note: The `withCustomYAxisLabels` and `yAxisLabels` are now spread from `lineChartSpecificProps`
+        // so you don't need to explicitly list them here again.
+      />
+    </ScrollView>
+  );
+};
   const getHabitCalendarData = useMemo(() => {
     if (!selectedHabit || !getHabitAnalytics.habitsByDate) return {};
 
-    const calendarData: { [date: string]: { completed: boolean; } } = {};
+    // Change the type to include 'wasTracked'
+    const calendarData: { [date: string]: { completed: boolean; wasTracked: boolean; } } = {};
     const startOfMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
     const endOfMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
 
     // Iterate through all days in the selected month
     for (let d = new Date(startOfMonth); d <= endOfMonth; d.setDate(d.getDate() + 1)) {
       const dateKey = d.toISOString().split('T')[0];
-      const dayData = getHabitAnalytics.habitsByDate[dateKey];
-      if (dayData && dayData[selectedHabit.name]) {
+      const dayHabitsForDate = getHabitAnalytics.habitsByDate[dateKey]; // All habits recorded on this date
+
+      // Check if the SPECIFIC selected habit was tracked on this day
+      const specificHabitEntry = dayHabitsForDate ? dayHabitsForDate[selectedHabit.name] : null;
+
+      if (specificHabitEntry) {
+        // If the specific habit entry exists for this day
         calendarData[dateKey] = {
-          completed: dayData[selectedHabit.name].completed
+          completed: specificHabitEntry.completed,
+          wasTracked: true // It was definitely tracked
         };
       } else {
-        // If no data for this specific habit on this day, mark as untracked
-        // This is handled by `wasTracked` in HabitCalendar component now
-        calendarData[dateKey] = { completed: false }; // Default for untracked
+        // If no specific habit entry exists for this day
+        calendarData[dateKey] = {
+          completed: false, // It was not completed (default for untracked)
+          wasTracked: false // It was NOT tracked for this specific habit
+        };
       }
     }
     return calendarData;

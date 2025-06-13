@@ -94,6 +94,8 @@ export default function TabLayout() {
         name="hospitals"
         options={{
           title: 'Hospitals',
+          headerShown: false,
+           href: null,
           tabBarIcon: ({ color }) => <TabBarIcon name="building" color={color} />, 
         }}
       />

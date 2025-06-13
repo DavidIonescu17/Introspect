@@ -1,0 +1,227 @@
+import { Platform, StyleSheet, Dimensions } from 'react-native';
+
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F7FA',
+    paddingTop: Platform.OS === 'android' ? 25 : 0,
+  },
+  header: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+    textAlign: 'center',
+    marginVertical: 20,
+  },
+  searchSection: {
+    paddingHorizontal: 16,
+    gap: 12,
+    marginBottom: 20,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#1A1A1A',
+  },
+  dropdown: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E5E5E5',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  dropdownContainer: {
+    borderColor: '#E5E5E5',
+    borderRadius: 12,
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: '#1A1A1A',
+  },
+  dropdownPlaceholder: {
+    color: '#999',
+  },
+  filtersContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    gap: 12,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  filterLabel: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1A1A1A',
+    fontWeight: '500',
+  },
+  listContent: {
+    padding: 16,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  name: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+    flex: 1,
+    marginRight: 12,
+  },
+  badgeContainer: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  badge: {
+    backgroundColor: '#6B4EFF20',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  badgeText: {
+    color: '#6B4EFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  infoContainer: {
+    gap: 12,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  infoText: {
+    fontSize: 15,
+    color: '#4A4A4A',
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+  },
+  footerLoader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+    gap: 8,
+  },
+  loadingMoreText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    marginTop: 30,
+  },
+  noResults: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 12,
+    fontWeight: 'bold',
+  },
+  centeredView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 35,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalText: {
+    marginBottom: 15,
+    textAlign: 'center',
+    fontSize: 16,
+    color: '#1A1A1A',
+  },
+  modalButton: {
+    borderRadius: 10,
+    padding: 10,
+    elevation: 2,
+    backgroundColor: '#6B4EFF',
+    marginTop: 10,
+    width: 80,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+});
+export default styles;

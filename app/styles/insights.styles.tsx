@@ -177,6 +177,7 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     borderRadius: 16,
     paddingRight: 20, // Space for label
+    marginLeft: 10
   },
   noDataContainer: { // Expanded, for charts as well
     alignItems: 'center',
@@ -420,45 +421,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 2,
   },
-  calendarDayCell: {
-    width: '90%',
-    height: '90%',
-    borderRadius: 10, // Slightly less rounded for a grid feel
+   calendarDayCell: {
+    width: '100%',
+    aspectRatio: 1, // Makes the cell square
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8F8FF', // Untracked/default background
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e4e4fc',
-    position: 'relative',
+    borderColor: 'transparent', // Default to transparent
   },
   calendarDayCompleted: {
     backgroundColor: '#D4EDDA', // Light green
     borderColor: '#28A745', // Green border
   },
   calendarDayIncomplete: {
-    backgroundColor: '#FADBD8', // Light red
+    backgroundColor: '#F8D7DA', // Light red
     borderColor: '#DC3545', // Red border
   },
-  calendarDayUntracked: { // Explicit style for untracked days
-    backgroundColor: '#F8F8FF',
-    borderColor: '#e4e4fc',
-  },
+  calendarDayUntracked: {
+  backgroundColor: 'transparent', // No background color
+  borderColor: 'transparent',    // No border
+  // You might set a lighter text color for untracked days
+},
   calendarDayText: {
     fontSize: 14,
-    color: '#2d3436',
+    color: '#333',
+    position: 'absolute', // Position text to allow icon beside it
+    top: 5,
   },
   calendarDayTextCompleted: {
-    color: '#28A745',
+    color: '#28A745', // Green text for completed days
     fontWeight: 'bold',
   },
   calendarDayTextIncomplete: {
-    color: '#DC3545',
+    color: '#DC3545', // Red text for incomplete days
     fontWeight: 'bold',
   },
   calendarDayTextUntracked: {
-    color: '#718096',
-  },
-  calendarDayIcon: { // Icon within calendar day cell
+  color: '#A0A0A0', // A light grey for untracked days
+},
+  calendarDayIcon: {
     position: 'absolute',
     bottom: 2,
     right: 2,
