@@ -1,3 +1,4 @@
+import CryptoJS from 'crypto-js';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -30,9 +31,9 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig'; // Adjust path as needed
 import { getAuth, User } from 'firebase/auth'; // Import User type
-import { decryptData, encryptData } from '../app/utils/encryption'; // Adjust path as needed
 import { MOODS } from '../constants/moods'; // Adjust path as needed
 import styles from '../app/styles/specific-day.styles'; // Re-use or adapt styles
+import { getEncryptionKey } from '../app/utils/encryption'; // (keep this)
 
 const { width } = Dimensions.get('window');
 
@@ -101,11 +102,42 @@ export default function JournalScreen({ date, user, openFormInitially }: Journal
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
-
+  const [encryptionKey, setEncryptionKey] = useState(null);
   const slideAnim = useRef(new Animated.Value(openFormInitially ? 1 : 0)).current;
+  
+  useEffect(() => {
+    (async () => {
+      const key = await getEncryptionKey();
+      setEncryptionKey(key);
+      })();
+    }, []);
+console.log('Current encryptionKey:', encryptionKey);
+
+  const decryptData = (encryptedData) => {
+    if (!encryptionKey) return null;
+    try {
+      const bytes = CryptoJS.AES.decrypt(encryptedData, encryptionKey);
+      return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+    } catch (error) {
+      console.error('Decryption error:', error);
+      return null;
+    }
+  };
+console.log('Current encryptionKey:', encryptionKey);
+
+  const encryptData = (data) => {
+    if (!encryptionKey) return null;
+    try {
+      return CryptoJS.AES.encrypt(JSON.stringify(data), encryptionKey).toString();
+    } catch (error) {
+      console.error('Encryption error:', error);
+      return null;
+    }
+  };
 
   const loadEntries = async () => {
-    if (!user) return;
+    if (!user || !encryptionKey) return;
+
 
     try {
       setLoading(true);
@@ -120,7 +152,7 @@ export default function JournalScreen({ date, user, openFormInitially }: Journal
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        const decryptedData = decryptData(data.encryptedContent);
+        const decryptedData = decryptData(data.encryptedContent || data.cryptedContent);
 
         if (decryptedData) {
           const entryDateString = new Date(decryptedData.date).toISOString().split('T')[0];
@@ -282,10 +314,11 @@ export default function JournalScreen({ date, user, openFormInitially }: Journal
     const updatedImages = entryImages.filter((_, i) => i !== index);
     setEntryImages(updatedImages);
   };
-
   useEffect(() => {
+  if (user && encryptionKey) {
     loadEntries();
-  }, [date, user]);
+  }
+  }, [date, user, encryptionKey]);
 
   useEffect(() => {
     Animated.timing(slideAnim, {

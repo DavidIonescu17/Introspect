@@ -1,13 +1,15 @@
 import { StyleSheet } from 'react-native';
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#FFFFFF', // Changed to white
   },
   heroSection: {
     paddingTop: 60,
     paddingBottom: 30,
     paddingHorizontal: 20,
+    backgroundColor: '#FFFFFF', // solid white background
   },
   heroContent: {
     alignItems: 'center',
@@ -20,15 +22,15 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   heroTitle: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '800',
-    color: 'white',
+    color: '#6B4EFF',
     marginBottom: 8,
     textAlign: 'center',
   },
   heroSubtitle: {
     fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: '#6B4EFF',
     marginBottom: 30,
     textAlign: 'center',
   },
@@ -122,10 +124,10 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   calendar: {
-       arrowColor: '#6B4EFF'
+    arrowColor: '#6B4EFF'
   },
   legendIcon: {
-    marginRight: 3, 
+    marginRight: 3,
   },
   legend: {
     marginTop: -20,
@@ -191,7 +193,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 10,
   },
-   dayWrapper: {
+  dayWrapper: {
     width: 40, // Reduced width
     height: 44, // Reduced height, balance between number and icons
     justifyContent: 'flex-start',
@@ -224,17 +226,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-start',
     width: '100%',
-    maxHeight: 35, // You might need to uncomment and adjust this if icons overflow too much
-    // overflow: 'hidden', // and this if maxHeight is set
-  },
-  multiMoodContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    width: '100%',
     maxHeight: 30, // Set a max height to control vertical space taken by moods
-     // Hide content that overflows the max height
+    // Hide content that overflows the max height
   },
   multiMoodIcon: {
     marginHorizontal: -1.1, // Further reduced horizontal spacing
@@ -269,4 +262,5 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
 });
+
 export default styles;

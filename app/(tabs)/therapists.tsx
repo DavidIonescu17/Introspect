@@ -12,11 +12,12 @@ import {
   Modal,
   Pressable,
   Switch,
+  // Removed ScrollView import as it's no longer used
 } from 'react-native';
-import DropDownPicker from 'react-native-dropdown-picker';
+import { Picker } from '@react-native-picker/picker'; // Import Picker
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 // Firebase Firestore Import
-import { db, auth } from '../../firebaseConfig'; 
+import { db, auth } from '../../firebaseConfig';
 import { collection, getDocs, query, orderBy, limit, startAfter, where } from "firebase/firestore";
 import { getAuth } from 'firebase/auth';
 import { router, useFocusEffect } from 'expo-router';
@@ -33,6 +34,7 @@ const specializationTranslations = {
 };
 
 const professionalTypeTranslations = {
+  "all": "All Professional Types", // Added "All" option for the picker
   "psiholog": "Psychologist",
   "psihoterapeut": "Psychotherapist",
   "psihoterapeut_in_supervizare": "Psychotherapist in Supervision",
@@ -81,40 +83,49 @@ const useDebounce = (value, delay) => {
 const ITEMS_PER_PAGE = 50; // Load 50 items at a time
 const INITIAL_LOAD_SIZE = 100; // Load more initially for better filtering
 
-function buildFirestoreQuery(lastDoc, showTSAOnly, showChildCareOnly) {
+// Modified buildFirestoreQuery: Removed specializationFilter from DB query
+function buildFirestoreQuery(lastDoc, showTSAOnly, showChildCareOnly, professionalTypeFilter = 'all') {
   const base = collection(db, 'therapists');
-  const order = orderBy('nume_prenume');
+  const order = orderBy('nume_prenume'); // Ordering by name
   const lim = limit(INITIAL_LOAD_SIZE);
 
+  let conditions = [];
+
+  // Registry source conditions
   if (showTSAOnly && showChildCareOnly) {
-    // Both toggled ON
-    return lastDoc
-      ? query(base, where('registru_sursa', 'array-contains-any', ['TSA', 'GRIJA_COPII']), order, startAfter(lastDoc), lim)
-      : query(base, where('registru_sursa', 'array-contains-any', ['TSA', 'GRIJA_COPII']), order, lim);
+    conditions.push(where('registru_sursa', 'array-contains-any', ['TSA', 'GRIJA_COPII']));
   } else if (showTSAOnly) {
-    // TSA only
-    return lastDoc
-      ? query(base, where('registru_sursa', 'array-contains', 'TSA'), order, startAfter(lastDoc), lim)
-      : query(base, where('registru_sursa', 'array-contains', 'TSA'), order, lim);
+    conditions.push(where('registru_sursa', 'array-contains', 'TSA'));
   } else if (showChildCareOnly) {
-    // Child Care only
-    return lastDoc
-      ? query(base, where('registru_sursa', 'array-contains', 'GRIJA_COPII'), order, startAfter(lastDoc), lim)
-      : query(base, where('registru_sursa', 'array-contains', 'GRIJA_COPII'), order, lim);
-  } else {
-    // Neither toggled, show all
-    return lastDoc
+    conditions.push(where('registru_sursa', 'array-contains', 'GRIJA_COPII'));
+  }
+
+  // Professional Type condition
+  if (professionalTypeFilter !== 'all') {
+    conditions.push(where('tip_profesionist', '==', professionalTypeFilter));
+  }
+
+  // Build query based on conditions
+  let finalQuery;
+  if (conditions.length === 0) { // If no conditions, just apply order and limit
+    finalQuery = lastDoc
       ? query(base, order, startAfter(lastDoc), lim)
       : query(base, order, lim);
+  } else { // If conditions exist, apply them, then order and limit
+    finalQuery = lastDoc
+      ? query(base, ...conditions, order, startAfter(lastDoc), lim)
+      : query(base, ...conditions, order, lim);
   }
+  return finalQuery;
 }
 
 const App = () => {
   // State for search and filter inputs
   const [searchQuery, setSearchQuery] = useState('');
   const [locationQuery, setLocationQuery] = useState(''); // Combined city/county search
-  const [selectedSpecializationValue, setSelectedSpecializationValue] = useState(null);
-  
+  const [specializationQuery, setSpecializationQuery] = useState(''); // Searchable specialization (now client-side filtered)
+  const [professionalTypeFilter, setProfessionalTypeFilter] = useState('all'); // 'all', 'psiholog', 'psihoterapeut', 'psihoterapeut_in_supervizare', 'alt_profesionist'
+
   // Registry source filters
   const [showChildCareOnly, setShowChildCareOnly] = useState(false); // GRIJA_COPII
   const [showAutismOnly, setShowAutismOnly] = useState(false); // TSA
@@ -122,22 +133,20 @@ const App = () => {
   // Debounced search values for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const debouncedLocationQuery = useDebounce(locationQuery, 300);
-
-  // State for DropDownPicker
-  const [openSpecializationDropdown, setOpenSpecializationDropdown] = useState(false);
-  const [specializationDropdownItems, setSpecializationDropdownItems] = useState([]);
+  const debouncedSpecializationQuery = useDebounce(specializationQuery, 300);
 
   // State for data management
-  const [allProfessionals, setAllProfessionals] = useState([]);
-  const [filteredProfessionals, setFilteredProfessionals] = useState([]);
+  const [allProfessionals, setAllProfessionals] = useState([]); // This will hold a broader set of data now
+  const [filteredProfessionals, setFilteredProfessionals] = useState([]); // Filtered subset for display
   const [displayedProfessionals, setDisplayedProfessionals] = useState([]);
-  
+  const [allSpecializations, setAllSpecializations] = useState([]); // Store all unique specializations (for dropdown/suggestions, not direct DB filtering)
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMoreData, setHasMoreData] = useState(true);
   const [lastDoc, setLastDoc] = useState(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  
+
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -149,6 +158,33 @@ const App = () => {
   const [searchCache, setSearchCache] = useState(new Map());
 
   const user = getAuth().currentUser;
+
+  // Fetch all unique specializations once (still useful for autocomplete/suggestions if desired)
+  const fetchAllSpecializations = useCallback(async () => {
+    try {
+      // Fetch a large sample to get most specializations
+      const q = query(collection(db, 'therapists'), limit(1000));
+
+      const querySnapshot = await getDocs(q);
+
+      const specializationsSet = new Set();
+      querySnapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.specializari && Array.isArray(data.specializari)) {
+          data.specializari.forEach(spec => {
+            if (spec && spec.trim()) {
+              specializationsSet.add(spec.trim());
+            }
+          });
+        }
+      });
+
+      const uniqueSpecializations = Array.from(specializationsSet).sort();
+      setAllSpecializations(uniqueSpecializations);
+    } catch (error) {
+      console.error("Error fetching specializations:", error);
+    }
+  }, []);
 
   // Auth state management
   useEffect(() => {
@@ -164,7 +200,7 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
-  // Create search cache with normalized data
+  // Create search cache with normalized data for client-side filtering
   const createSearchCache = useCallback((professionals) => {
     const cache = new Map();
     professionals.forEach((professional, index) => {
@@ -175,8 +211,10 @@ const App = () => {
         normalizedCounty: normalizeText(professional.judet || ''),
         normalizedCity: normalizeText(professional.localitate || ''),
         normalizedLocation: normalizeText(`${professional.judet || ''} ${professional.localitate || ''}`),
-        specializations: (professional.specializari || []).map(s => normalizeText(s)),
+        specializations: (professional.specializari || []).map(s => normalizeText(s)), // Normalize specializations for searching
+        originalSpecializations: professional.specializari || [],
         registrySource: professional.registru_sursa || '',
+        normalizedProfessionalType: normalizeText(professional.tip_profesionist || ''),
       };
       cache.set(professional.id, searchData);
     });
@@ -189,46 +227,43 @@ const App = () => {
 
     try {
       setIsLoadingMore(true);
-      
-      let q;
-      if (lastDoc) {
-        q = buildFirestoreQuery(
-          lastDoc,
-          showAutismOnly,
-          showChildCareOnly
-        );
-      } else {
-        return; // Already loaded initial data
-      }
-      
+
+      // Build Firestore query without specializationFilter
+      let q = buildFirestoreQuery(
+        lastDoc,
+        showAutismOnly,
+        showChildCareOnly,
+        professionalTypeFilter
+      );
+
       const querySnapshot = await getDocs(q);
-      
+
       if (querySnapshot.empty) {
         setHasMoreData(false);
         return;
       }
-      
+
       const newProfessionals = [];
       querySnapshot.forEach(doc => {
         newProfessionals.push({ id: doc.id, ...doc.data() });
       });
-      
+
       // Update last document for pagination
       setLastDoc(querySnapshot.docs[querySnapshot.docs.length - 1]);
-      
+
       // Add new professionals to existing data
       const updatedProfessionals = [...allProfessionals, ...newProfessionals];
       setAllProfessionals(updatedProfessionals);
-      
+
       // Update search cache with new data
       createSearchCache(updatedProfessionals);
-      
+
     } catch (error) {
       console.error("Error loading more professionals:", error);
     } finally {
       setIsLoadingMore(false);
     }
-  }, [isLoadingMore, hasMoreData, user, lastDoc, allProfessionals, createSearchCache, showAutismOnly, showChildCareOnly]);
+  }, [isLoadingMore, hasMoreData, user, lastDoc, allProfessionals, createSearchCache, showAutismOnly, showChildCareOnly, professionalTypeFilter]);
 
   // Initial fetch with progressive loading capability
   const fetchProfessionals = useCallback(async () => {
@@ -242,53 +277,39 @@ const App = () => {
 
     try {
       setLoading(true);
-      
+
       // Reset pagination state when fetching new data
       setCurrentPage(1);
       setLastDoc(null);
       setHasMoreData(true);
-      
-      // Fetch first batch
+
+      // Fetch first batch without specializationFilter
       const q = buildFirestoreQuery(
         null,
         showAutismOnly,
-        showChildCareOnly
+        showChildCareOnly,
+        professionalTypeFilter
       );
-      
+
       const querySnapshot = await getDocs(q);
       const professionalsList = [];
-      
+
       querySnapshot.forEach(doc => {
         professionalsList.push({ id: doc.id, ...doc.data() });
       });
-      
+
       // Set last document for pagination
       if (querySnapshot.docs.length > 0) {
         setLastDoc(querySnapshot.docs[querySnapshot.docs.length - 1]);
         setHasMoreData(querySnapshot.docs.length === INITIAL_LOAD_SIZE);
+      } else {
+        setHasMoreData(false); // No data found
       }
-      
+
       setAllProfessionals(professionalsList);
-      
+
       // Create search cache
       createSearchCache(professionalsList);
-      
-      // Extract unique specializations for dropdown (normalized)
-      const allSpecializations = professionalsList.flatMap((item) =>
-        item.specializari ? item.specializari.map(s => normalizeText(s)) : []
-      );
-      
-      const uniqueSpecializations = Array.from(new Set(allSpecializations))
-        .sort()
-        .map((item) => ({ 
-          label: translateTerm(item, specializationTranslations),
-          value: item
-        }));
-
-      setSpecializationDropdownItems([
-        { label: 'All Specializations', value: null }, 
-        ...uniqueSpecializations
-      ]);
 
     } catch (error) {
       console.error("Error fetching data from Firestore:", error);
@@ -297,9 +318,9 @@ const App = () => {
     } finally {
       setLoading(false);
     }
-  }, [user, createSearchCache, showAutismOnly, showChildCareOnly]);
+  }, [user, createSearchCache, showAutismOnly, showChildCareOnly, professionalTypeFilter]);
 
-  // Optimized filtering - removed duplicate registry source filters since they're handled in fetchProfessionals
+  // Optimized filtering (client-side) - Now handles specialization filter
   const applyFilters = useCallback(() => {
     let currentData = allProfessionals;
 
@@ -325,21 +346,26 @@ const App = () => {
       });
     }
 
-    // Specialization filter
-    if (selectedSpecializationValue) {
+    // Specialization search - Client-side filtering for partial matches
+    if (debouncedSpecializationQuery.trim() !== '') {
+      const normalizedSpecQuery = normalizeText(debouncedSpecializationQuery.trim());
       currentData = currentData.filter((item) => {
         const cachedData = searchCache.get(item.id);
-        return cachedData && cachedData.specializations.includes(selectedSpecializationValue);
+        // Check if any of the professional's specializations include the search query
+        return cachedData && cachedData.specializations.some(spec =>
+          spec.includes(normalizedSpecQuery)
+        );
       });
     }
+    // Professional Type filter is primarily handled by Firestore query, so no client-side filtering needed here for it.
 
     setFilteredProfessionals(currentData);
     setCurrentPage(1);
   }, [
-    debouncedSearchQuery, 
-    debouncedLocationQuery, 
-    selectedSpecializationValue, 
-    allProfessionals, 
+    debouncedSearchQuery,
+    debouncedLocationQuery,
+    debouncedSpecializationQuery, // Keep this here to re-run client-side filtering when text changes
+    allProfessionals,
     searchCache
   ]);
 
@@ -348,45 +374,43 @@ const App = () => {
     const startIndex = 0;
     const endIndex = currentPage * ITEMS_PER_PAGE;
     const newDisplayed = filteredProfessionals.slice(startIndex, endIndex);
-    
+
     setDisplayedProfessionals(newDisplayed);
-    
-    // Check if we need to load more data from Firestore
-    const hasMoreDisplayed = endIndex < filteredProfessionals.length;
-    
-    // If we're showing filtered results and approaching the end, try to load more from Firestore
-    if (!hasMoreDisplayed && filteredProfessionals.length > 0 && hasMoreData && 
-        (debouncedLocationQuery.trim() !== '' || debouncedSearchQuery.trim() !== '')) {
-      loadMoreProfessionals();
-    }
-  }, [filteredProfessionals, currentPage, hasMoreData, debouncedLocationQuery, debouncedSearchQuery, loadMoreProfessionals]);
 
-  // Load more data for pagination
-  const loadMoreData = useCallback(() => {
-    if (!loadingMore) {
-      const hasMoreDisplayed = (currentPage * ITEMS_PER_PAGE) < filteredProfessionals.length;
-      
-      if (hasMoreDisplayed) {
-        setLoadingMore(true);
-        setTimeout(() => {
-          setCurrentPage(prev => prev + 1);
-          setLoadingMore(false);
-        }, 100);
-      } else if (hasMoreData && (debouncedLocationQuery.trim() !== '' || debouncedSearchQuery.trim() !== '')) {
-        // Load more from Firestore for filtered searches
+    // If we're showing filtered results and approaching the end of the client-side data,
+    // and there's potentially more data in Firestore, load more.
+    const isEndOfClientFilteredData = endIndex >= filteredProfessionals.length;
+
+    if (isEndOfClientFilteredData && hasMoreData && !isLoadingMore) {
+        // Only load more from Firestore if no client-side search query is active
+        // or if the DB query is already broad enough (which it now is for specialization)
+        // This condition ensures we don't try to load more if all data is already loaded or we are fetching.
         loadMoreProfessionals();
-      }
     }
-  }, [loadingMore, currentPage, filteredProfessionals.length, hasMoreData, debouncedLocationQuery, debouncedSearchQuery, loadMoreProfessionals]);
+  }, [filteredProfessionals, currentPage, hasMoreData, isLoadingMore, loadMoreProfessionals]);
 
-  // Handle toggle changes - refetch data when toggles change
-  const handleToggleChange = useCallback((toggleType, value) => {
+
+  // Load more data for FlatList's onEndReached (triggers pagination of `displayedProfessionals`)
+  const loadMoreData = useCallback(() => {
+    if (!loadingMore && (currentPage * ITEMS_PER_PAGE) < filteredProfessionals.length) {
+      setLoadingMore(true);
+      setTimeout(() => {
+        setCurrentPage(prev => prev + 1);
+        setLoadingMore(false);
+      }, 100);
+    }
+    // The `updateDisplayedProfessionals` effect will handle triggering `loadMoreProfessionals`
+    // when client-side filtered data runs out and there's more data in Firestore.
+  }, [loadingMore, currentPage, filteredProfessionals.length]);
+
+  // Handle registry source toggle changes
+  const handleRegistryToggleChange = useCallback((toggleType, value) => {
     if (toggleType === 'childcare') {
       setShowChildCareOnly(value);
     } else if (toggleType === 'autism') {
       setShowAutismOnly(value);
     }
-    
+
     // Reset state and refetch data
     setAllProfessionals([]);
     setFilteredProfessionals([]);
@@ -396,20 +420,45 @@ const App = () => {
     setHasMoreData(true);
   }, []);
 
+  // Handle professional type filter change
+  const handleProfessionalTypeFilterChange = useCallback((type) => {
+    setProfessionalTypeFilter(type);
+    // Reset state and refetch data when filter changes
+    setAllProfessionals([]);
+    setFilteredProfessionals([]);
+    setDisplayedProfessionals([]);
+    setCurrentPage(1);
+    setLastDoc(null);
+    setHasMoreData(true);
+  }, []);
+
   // Effects
+  useEffect(() => {
+    if (user) {
+      fetchAllSpecializations();
+    }
+  }, [user, fetchAllSpecializations]);
+
   useFocusEffect(
     useCallback(() => {
       if (user) {
+        // Dependencies now include all filters that trigger a Firestore refetch
+        // specializationQuery is NOT here because it's now client-side filtered
         fetchProfessionals();
       }
-    }, [user, fetchProfessionals, showAutismOnly, showChildCareOnly])
+    }, [user, fetchProfessionals, showAutismOnly, showChildCareOnly, professionalTypeFilter])
   );
 
   useEffect(() => {
+    // This effect runs whenever filter inputs change (debounced for search and location,
+    // and immediately for specialization as it's now client-side).
+    // It will re-filter `allProfessionals` into `filteredProfessionals`.
     applyFilters();
   }, [applyFilters]);
 
   useEffect(() => {
+    // This effect runs whenever `filteredProfessionals` changes or `currentPage` changes,
+    // updating the visible list and potentially triggering more Firestore fetches.
     updateDisplayedProfessionals();
   }, [filteredProfessionals, currentPage, updateDisplayedProfessionals]);
 
@@ -420,20 +469,20 @@ const App = () => {
     const county = item.judet || 'N/A';
     const city = item.localitate || '';
     const location = city ? `${city}, ${county}` : county;
-    
+
     const emails = Array.isArray(item.email) ? item.email.filter(e => e).join(', ') : '';
     const phones = Array.isArray(item.telefon) ? item.telefon.filter(p => p).join(', ') : '';
-    const specializations = Array.isArray(item.specializari) 
+    const specializations = Array.isArray(item.specializari)
       ? item.specializari.map(s => translateTerm(s, specializationTranslations)).join(', ')
       : '';
     const office = item.sediul_profesional || '';
     const professionalType = translateTerm(item.tip_profesionist, professionalTypeTranslations);
     const regime = item.regim_exercitare || '';
-    
+
     // Registry source badge - handle both string and array cases
     const getRegistryBadge = () => {
       const registrySource = item.registru_sursa;
-      
+
       // Handle array case
       if (Array.isArray(registrySource)) {
         if (registrySource.includes('GRIJA_COPII')) {
@@ -441,7 +490,7 @@ const App = () => {
         } else if (registrySource.includes('TSA')) {
           return { text: 'Autism Specialist', color: '#4ECDC4' };
         }
-      } 
+      }
       // Handle string case
       else if (typeof registrySource === 'string') {
         if (registrySource === 'GRIJA_COPII') {
@@ -450,10 +499,10 @@ const App = () => {
           return { text: 'Autism Specialist', color: '#4ECDC4' };
         }
       }
-      
+
       return null;
     };
-    
+
     const registryBadge = getRegistryBadge();
 
     return (
@@ -473,7 +522,7 @@ const App = () => {
             </View>
           </View>
         </View>
-        
+
         <View style={styles.infoContainer}>
           {emails && (
             <View style={styles.infoRow}>
@@ -481,21 +530,21 @@ const App = () => {
               <Text style={styles.infoText}>{emails}</Text>
             </View>
           )}
-          
+
           {phones && (
             <View style={styles.infoRow}>
               <MaterialCommunityIcons name="phone-outline" size={20} color="#6B4EFF" />
               <Text style={styles.infoText}>{phones}</Text>
             </View>
           )}
-          
+
           {specializations && (
             <View style={styles.infoRow}>
               <MaterialCommunityIcons name="certificate-outline" size={20} color="#6B4EFF" />
               <Text style={styles.infoText}>{specializations}</Text>
             </View>
           )}
-          
+
           {office && (
             <View style={styles.infoRow}>
               <MaterialCommunityIcons name="office-building" size={20} color="#6B4EFF" />
@@ -532,29 +581,10 @@ const App = () => {
     );
   }, [loadingMore, isLoadingMore]);
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={isModalVisible}
-        onRequestClose={() => setIsModalVisible(false)}
-      >
-        <Pressable style={styles.centeredView} onPress={() => setIsModalVisible(false)}>
-          <View style={styles.modalView}>
-            <Text style={styles.modalText}>{modalMessage}</Text>
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={() => setIsModalVisible(false)}
-            >
-              <Text style={styles.modalButtonText}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
-
-      <Text style={styles.header}>Psychology Experts</Text>
-
+  // ListHeaderComponent for FlatList, containing all search and filter inputs
+  const ListHeader = () => (
+    <View>
+      <Text style={styles.header}>Licensed Mental Health Professionals</Text>
       <View style={styles.searchSection}>
         <View style={styles.searchContainer}>
           <MaterialCommunityIcons name="account-search" size={20} color="#6B4EFF" style={styles.searchIcon} />
@@ -578,21 +608,37 @@ const App = () => {
           />
         </View>
 
-        <DropDownPicker
-          open={openSpecializationDropdown}
-          value={selectedSpecializationValue}
-          items={specializationDropdownItems}
-          setOpen={setOpenSpecializationDropdown}
-          setValue={setSelectedSpecializationValue}
-          setItems={setSpecializationDropdownItems}
-          placeholder="Select Specialization"
-          style={styles.dropdown}
-          containerStyle={styles.dropdownContainer}
-          textStyle={styles.dropdownText}
-          placeholderStyle={styles.dropdownPlaceholder}
-          zIndex={3000}
-          zIndexInverse={1000}
-        />
+        <View style={styles.searchContainer}>
+          <MaterialCommunityIcons name="certificate-outline" size={20} color="#6B4EFF" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by specialization..."
+            value={specializationQuery}
+            onChangeText={setSpecializationQuery}
+            placeholderTextColor="#999"
+          />
+        </View>
+
+        {/* Professional Type Filter - Now a Picker (Dropdown) */}
+        <View style={styles.filtersContainer}>
+          <Text style={styles.filterLabel}>Filter by Professional Type:</Text>
+          {/* Apply searchContainer style to make it look consistent with other inputs */}
+          <View style={[styles.searchContainer, styles.pickerInputWrapper]}>
+            {/* The actual Picker component */}
+            <Picker
+              selectedValue={professionalTypeFilter}
+              onValueChange={(itemValue) => handleProfessionalTypeFilterChange(itemValue)}
+              style={styles.picker}
+              // Note: itemStyle is not consistently supported on all platforms for Picker.Item
+            >
+              {/* Loop through the translation map to create picker items */}
+              {Object.entries(professionalTypeTranslations).map(([key, value]) => (
+                <Picker.Item key={key} label={value} value={key} />
+              ))}
+            </Picker>
+          </View>
+        </View>
+
 
         {/* Registry Source Filters */}
         <View style={styles.filtersContainer}>
@@ -601,7 +647,7 @@ const App = () => {
             <Text style={styles.filterLabel}>Child Care Specialists Only</Text>
             <Switch
               value={showChildCareOnly}
-              onValueChange={(val) => handleToggleChange('childcare', val)}
+              onValueChange={(val) => handleRegistryToggleChange('childcare', val)}
               trackColor={{ false: '#767577', true: '#FF6B6B' }}
               thumbColor={showChildCareOnly ? '#FFFFFF' : '#f4f3f4'}
             />
@@ -610,16 +656,40 @@ const App = () => {
           <View style={styles.filterRow}>
             <MaterialCommunityIcons name="puzzle" size={20} color="#4ECDC4" />
             <Text style={styles.filterLabel}>Autism Specialists Only</Text>
-            <Switch
+          <Switch
               value={showAutismOnly}
-              onValueChange={(val) => handleToggleChange('autism', val)}
+              onValueChange={(val) => handleRegistryToggleChange('autism', val)}
               trackColor={{ false: '#767577', true: '#4ECDC4' }}
               thumbColor={showAutismOnly ? '#FFFFFF' : '#f4f3f4'}
             />
           </View>
         </View>
-      </View>
+    </View>
+    </View>
+  );
 
+  return (
+    <SafeAreaView style={styles.container}>
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={isModalVisible}
+        onRequestClose={() => setIsModalVisible(false)}
+      >
+        <Pressable style={styles.centeredView} onPress={() => setIsModalVisible(false)}>
+          <View style={styles.modalView}>
+            <Text style={styles.modalText}>{modalMessage}</Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setIsModalVisible(false)}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* FlatList with ListHeaderComponent for filters */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#6B4EFF" />
@@ -630,6 +700,7 @@ const App = () => {
           data={displayedProfessionals}
           keyExtractor={(item) => item.id}
           renderItem={renderProfessionalItem}
+          ListHeaderComponent={ListHeader} // Render all filters as the header of the FlatList
           contentContainerStyle={styles.listContent}
           onEndReached={loadMoreData}
           onEndReachedThreshold={0.1}
@@ -638,12 +709,14 @@ const App = () => {
           maxToRenderPerBatch={10}
           windowSize={10}
           initialNumToRender={10}
-          getItemLayout={(data, index) => ({
-            length: 220, // Approximate item height (increased for badges)
-            offset: 220 * index,
-            index,
-          })}
+          // getItemLayout can be removed or adjusted if card height varies significantly due to text wrapping
+          // getItemLayout={(data, index) => ({
+          //   length: 220, // Approximate item height (increased for badges)
+          //   offset: 220 * index,
+          //   index,
+          // })}
           ListEmptyComponent={() => (
+            // Only show empty state if not loading and filters are applied resulting in no results
             <View style={styles.emptyContainer}>
               <MaterialCommunityIcons name="alert-circle-outline" size={48} color="#6B4EFF" />
               <Text style={styles.noResults}>

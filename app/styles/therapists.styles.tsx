@@ -1,192 +1,209 @@
-import { Platform, StyleSheet, Dimensions } from 'react-native';
-
+import { StyleSheet } from 'react-native';
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
-    paddingTop: Platform.OS === 'android' ? 25 : 0,
+    backgroundColor: '#F5F3FF', // Light purple background
   },
   header: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#1A1A1A',
+    color: '#6B4EFF', // Deep purple text
     textAlign: 'center',
-    marginVertical: 20,
+    paddingVertical: 20,
+    marginTop: 20, // Add some top margin
+    marginBottom: 10,
   },
   searchSection: {
-    paddingHorizontal: 16,
-    gap: 12,
-    marginBottom: 20,
+    marginBottom: 0, // Keep some margin for spacing after the whole section
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 15,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#E0D9FF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
-    elevation: 1,
+    elevation: 2,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 10,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 12,
+    height: 50,
     fontSize: 16,
-    color: '#1A1A1A',
-  },
-  dropdown: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E5E5E5',
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  dropdownContainer: {
-    borderColor: '#E5E5E5',
-    borderRadius: 12,
-  },
-  dropdownText: {
-    fontSize: 16,
-    color: '#1A1A1A',
-  },
-  dropdownPlaceholder: {
-    color: '#999',
+    color: '#2D3748',
   },
   filtersContainer: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 16,
+    padding: 10,
+    marginBottom: 15,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#E0D9FF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
-    elevation: 1,
-    gap: 12,
+    elevation: 2,
+  },
+  filterLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2D3748',
+    marginBottom: 8,
   },
   filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    paddingVertical: 5,
   },
-  filterLabel: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1A1A1A',
-    fontWeight: '500',
+  // NEW Picker Styles to match search input fields
+  pickerInputWrapper: {
+    // We apply the core visual styles here to match searchContainer's appearance
+    flexDirection: 'row', // Important for layout of picker and icon
+    alignItems: 'center', // Vertically center content
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E0D9FF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+    height: 50, // Match input height for consistency
+    overflow: 'hidden', // Ensure content respects border radius
   },
+  picker: {
+    flex: 1, // Make picker take all available space
+    height: 50, // Standard height for picker
+    color: '#2D3748', // Text color for selected item
+    // Add horizontal padding directly to the picker for consistent spacing
+    paddingHorizontal: 15, // Match searchInput's padding
+  },
+  
+
   listContent: {
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingTop: 0, // ListHeaderComponent will handle top spacing
+    paddingBottom: 20, // Ensure bottom padding for FlatList content
   },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    padding: 20,
+    marginBottom: 5,
+    shadowColor: '#6B4EFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#F0EBFF',
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   name: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1A1A1A',
-    flex: 1,
-    marginRight: 12,
+    color: '#2D3748',
+    flexShrink: 1,
+    marginRight: 10,
   },
   badgeContainer: {
-    alignItems: 'flex-end',
-    gap: 6,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    maxWidth: '50%',
   },
   badge: {
-    backgroundColor: '#6B4EFF20',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    backgroundColor: '#F0EBFF',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginLeft: 5,
+    marginBottom: 5,
   },
   badgeText: {
-    color: '#6B4EFF',
     fontSize: 12,
+    color: '#6B4EFF',
     fontWeight: '600',
   },
   infoContainer: {
-    gap: 12,
+    marginTop: 10,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 8,
   },
   infoText: {
-    fontSize: 15,
-    color: '#4A4A4A',
-    flex: 1,
+    fontSize: 14,
+    color: '#4A5568',
+    marginLeft: 10,
+    flexShrink: 1, // Allow text to wrap
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    paddingVertical: 50,
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#666',
+    color: '#6B4EFF',
   },
   footerLoader: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
     paddingVertical: 20,
-    gap: 8,
+    alignItems: 'center',
   },
   loadingMoreText: {
+    marginTop: 5,
     fontSize: 14,
-    color: '#666',
+    color: '#6B4EFF',
   },
   emptyContainer: {
-    alignItems: 'center',
+    flex: 1,
     justifyContent: 'center',
-    padding: 40,
-    marginTop: 30,
+    alignItems: 'center',
+    paddingVertical: 80,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginTop: 20,
+    marginHorizontal: 0, // Removed horizontal margin to fit FlatList's padding
+    borderWidth: 1,
+    borderColor: '#E0D9FF',
   },
   noResults: {
+    marginTop: 15,
     fontSize: 16,
-    color: '#666',
-    marginTop: 12,
-    fontWeight: 'bold',
+    color: '#9991B1',
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
+  // Modal styles (already existing, ensuring they are here)
   centeredView: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   modalView: {
     margin: 20,
@@ -207,16 +224,13 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     textAlign: 'center',
     fontSize: 16,
-    color: '#1A1A1A',
+    color: '#333',
   },
   modalButton: {
+    backgroundColor: '#6B4EFF',
     borderRadius: 10,
     padding: 10,
     elevation: 2,
-    backgroundColor: '#6B4EFF',
-    marginTop: 10,
-    width: 80,
-    alignItems: 'center',
   },
   modalButtonText: {
     color: 'white',
@@ -224,4 +238,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
 export default styles;

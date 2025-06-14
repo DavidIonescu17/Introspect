@@ -417,6 +417,88 @@ const styles = StyleSheet.create({
   lightPurpleBackground: {
     backgroundColor: '#f3f0ff',
   },
+  sectionContainer: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  
+  // Updated habit item styles to work with colored backgrounds
+  habitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5', // This will be overridden by the color
+    borderRadius: 12,
+    marginBottom: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    elevation: 2, // Android shadow
+    shadowColor: '#000', // iOS shadow
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  
+  habitContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  
+  habitIcon: {
+    marginRight: 12,
+  },
+  
+  habitText: {
+    fontSize: 16,
+    fontWeight: '500',
+    flex: 1,
+  },
+  
+  deleteHabitButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  
+  // Keep your existing styles for other elements
+  habitsContainer: {
+    flex: 1,
+    
+  },
+  
+  dailyHabitsList: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  
+  emptyStateText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 16,
+    paddingHorizontal: 32,
+  },
 });
 
 export default styles;

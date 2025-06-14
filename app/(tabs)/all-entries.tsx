@@ -18,7 +18,9 @@ import {
   getDocs,
   query,
   orderBy,
-  where
+  where,
+  updateDoc,
+  doc
 } from 'firebase/firestore';
 import CryptoJS from 'crypto-js';
 import { db } from '../../firebaseConfig';
@@ -26,7 +28,7 @@ import { useRouter, Stack } from 'expo-router';
 import { getAuth } from 'firebase/auth';
 import { LinearGradient } from 'expo-linear-gradient'; // Import LinearGradient for a nicer header
 
-const ENCRYPTION_KEY = 'ezYxGHuBw5W5jKewAnJsmie52Ge14WCzk+mIW8IFD6gzl/ubFlHjGan+LbcJ2M1m';
+import { getEncryptionKey } from '../utils/encryption'; // update path as needed
 
 const MOODS = {
   veryHappy: {
@@ -97,27 +99,39 @@ const MOODS = {
   }
 };
 
-// Encryption functions (copied from specific-day.tsx)
-const decryptData = (encryptedData) => {
-  try {
-    const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
-    return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-  } catch (error) {
-    console.error('Decryption error:', error);
-    return null;
-  }
-};
-
 export default function AllEntries() {
   const router = useRouter();
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [encryptionKey, setEncryptionKey] = useState(null);
 
   const auth = getAuth();
   const user = auth.currentUser;
 
+  useEffect(() => {
+    (async () => {
+      const key = await getEncryptionKey();
+      setEncryptionKey(key);
+    })();
+  }, []);
+
+  const decryptData = (encryptedData) => {
+  if (!encryptionKey) return null;
+  try {
+    const bytes = CryptoJS.AES.decrypt(encryptedData, encryptionKey);
+    const result = bytes.toString(CryptoJS.enc.Utf8);
+    console.log('Decrypted string:', result); // Add this
+    if (result) return JSON.parse(result);
+  } catch (e) {
+    console.log('Decryption error:', e);
+  }
+  return null;
+};
+
+
+  
   const loadAllEntries = async () => {
-    if (!user) {
+    if (!user || !encryptionKey) {
       setLoading(false);
       return;
     }
@@ -156,8 +170,10 @@ export default function AllEntries() {
   };
 
   useEffect(() => {
-    loadAllEntries();
-  }, [user]);
+    if (encryptionKey && user) {
+      loadAllEntries();
+    }
+  }, [encryptionKey, user]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -228,7 +244,7 @@ export default function AllEntries() {
       </View>
     </TouchableOpacity>
   );
-
+  
   return (
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -250,7 +266,7 @@ export default function AllEntries() {
           </View>
         </View>
       </LinearGradient>
-
+   
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#6B4EFF" />

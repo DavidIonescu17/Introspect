@@ -1,6 +1,5 @@
-// specific-day.tsx
 import styles from '../styles/specific-day.styles';
-import React, { useState, useEffect, useRef} from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +7,7 @@ import {
   ScrollView,
   SafeAreaView,
   Dimensions,
+  ActivityIndicator, // Import ActivityIndicator for loading state
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
@@ -22,8 +22,11 @@ const { width } = Dimensions.get('window');
 export default function SpecificDay() {
   const { date, initialTab, openForm } = useLocalSearchParams();
 
-  // Change default to 'habits' if you want it to be the initial tab
   const [activeTab, setActiveTab] = useState<'habits' | 'journal'>(initialTab === 'journal' ? 'journal' : 'habits');
+  const [quote, setQuote] = useState<{ q: string; a: string } | null>(null);
+  const [loadingQuote, setLoadingQuote] = useState<boolean>(true);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+
   const auth = getAuth();
   const user = auth.currentUser;
   const router = useRouter();
@@ -42,6 +45,26 @@ export default function SpecificDay() {
     }
   }, [initialTab, openForm, activeTab]);
 
+  useEffect(() => {
+    const fetchQuote = async () => {
+      try {
+        const response = await fetch('https://zenquotes.io/api/random');
+        const data = await response.json();
+        if (data && data.length > 0) {
+          setQuote(data[0]);
+        } else {
+          setQuoteError('Nu s-a putut obține citatul.');
+        }
+      } catch (error) {
+        console.error('Eroare la preluarea citatului:', error);
+        setQuoteError('Eroare la încărcarea citatului. Vă rugăm să verificați conexiunea la internet.');
+      } finally {
+        setLoadingQuote(false);
+      }
+    };
+
+    fetchQuote();
+  }, []); // Empty dependency array means this effect runs once on mount
 
   return (
     <SafeAreaView style={styles.container}>
@@ -69,6 +92,20 @@ export default function SpecificDay() {
               })}
             </Text>
           </View>
+        </View>
+
+        {/* Quote Section */}
+        <View style={styles.quoteContainer}>
+          {loadingQuote ? (
+            <ActivityIndicator size="small" color="#666" />
+          ) : quoteError ? (
+            <Text style={styles.quoteErrorText}>{quoteError}</Text>
+          ) : quote ? (
+            <>
+              <Text style={styles.quoteText}>"{quote.q}"</Text>
+              <Text style={styles.quoteAuthor}>- {quote.a}</Text>
+            </>
+          ) : null}
         </View>
 
         {/* Tab Selector */}

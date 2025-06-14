@@ -1,10 +1,10 @@
 import styles from '../styles/index.styles';
-import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import React, { useState, useEffect, useCallback } from 'react';
 import { TouchableOpacity, Text, ScrollView, Image, View, Dimensions, Alert } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { auth } from '../../firebaseConfig';
 import { getAuth } from 'firebase/auth';
-import { router, useFocusEffect } from 'expo-router'; // Added useFocusEffect
+import { router, useFocusEffect } from 'expo-router';
 import {
   getFirestore,
   collection,
@@ -17,43 +17,43 @@ import { db } from '../../firebaseConfig';
 import CryptoJS from 'crypto-js';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-
-const ENCRYPTION_KEY = 'ezYxGHuBw5W5jKewAnJsmie52Ge14WCzk+mIW8IFD6gzl/ubFlHjGan+LbcJ2M1m';
+import { getEncryptionKey } from '../utils/encryption';
 
 const MOODS = {
-  veryHappy: { icon: 'emoticon-excited-outline', color: '#FFD93D' },
-  happy: { icon: 'emoticon-happy-outline', color: '#4CAF50' },
-  content: { icon: 'emoticon-outline', color: '#7ED6DF' },
-  neutral: { icon: 'emoticon-neutral-outline', color: '#92beb5' },
-  anxious: { icon: 'emoticon-frown-outline', color: '#9b59b6' },
-  angry: { icon: 'emoticon-angry-outline', color: '#e74c3c' },
-  sad: { icon: 'emoticon-sad-outline', color: '#7286D3' },
-  verySad: { icon: 'emoticon-cry-outline', color: '#b44560' },
-  overwhelmed: { icon: 'emoticon-confused-outline', color: '#ffa502' },
-  tired: { icon: 'emoticon-sick-outline', color: '#95a5a6' },
-  hopeful: { icon: 'emoticon-wink-outline', color: '#00cec9' }
+  veryHappy: { icon: 'emoticon-excited-outline', color: '#FFD93D', label: 'Very Happy' },
+  happy: { icon: 'emoticon-happy-outline', color: '#4CAF50', label: 'Happy' },
+  content: { icon: 'emoticon-outline', color: '#7ED6DF', label: 'Content' },
+  neutral: { icon: 'emoticon-neutral-outline', color: '#92beb5', label: 'Neutral' },
+  anxious: { icon: 'emoticon-frown-outline', color: '#9b59b6', label: 'Anxious' },
+  angry: { icon: 'emoticon-angry-outline', color: '#e74c3c', label: 'Angry' },
+  sad: { icon: 'emoticon-sad-outline', color: '#7286D3', label: 'Sad' },
+  verySad: { icon: 'emoticon-cry-outline', color: '#b44560', label: 'Very Sad' },
+  overwhelmed: { icon: 'emoticon-confused-outline', color: '#ffa502', label: 'Overwhelmed' },
+  tired: { icon: 'emoticon-sick-outline', color: '#95a5a6', label: 'Tired' },
+  hopeful: { icon: 'emoticon-wink-outline', color: '#00cec9', label: 'Hopeful' }
 };
 
 const { width } = Dimensions.get('window');
 
-const decryptData = (encryptedData) => {
-  try {
-    const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
-    return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-  } catch (error) {
-    console.error('Decryption error:', error);
-    return null;
-  }
-};
-
 export default function TabOneScreen() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [moodData, setMoodData] = useState<{ [date: string]: string[] }>({}); // Explicitly typed
-  const [dailyHabitStats, setDailyHabitStats] = useState<{ [date: string]: { completed: number, total: number } }>({}); // Added
+  const [moodData, setMoodData] = useState<{ [date: string]: string[] }>({});
+  const [dailyHabitStats, setDailyHabitStats] = useState<{ [date: string]: { completed: number, total: number } }>({});
   const [loading, setLoading] = useState(true);
-  const [isHabitView, setIsHabitView] = useState(false); // Added
-
+  const [isHabitView, setIsHabitView] = useState(false);
+  const [encryptionKey, setEncryptionKey] = useState<string | null>(null); // Type as string | null
+  const [isEncryptionKeyLoaded, setIsEncryptionKeyLoaded] = useState(false); // New state to track key loading
   const user = getAuth().currentUser;
+
+  // Effect to load encryption key
+  useEffect(() => {
+    const loadKey = async () => {
+      const key = await getEncryptionKey();
+      setEncryptionKey(key);
+      setIsEncryptionKeyLoaded(true); // Set flag when key is loaded
+    };
+    loadKey();
+  }, []); // Run only once on mount
 
   // Use useEffect for initial auth state observation
   useEffect(() => {
@@ -66,27 +66,49 @@ export default function TabOneScreen() {
   // Use useFocusEffect to re-fetch data whenever the screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      if (user) {
+      // Only load data if user is present AND encryption key is loaded
+      if (user && isEncryptionKeyLoaded) {
         loadMoodData();
-        fetchDailyHabitStats(); // Fetch habit stats on focus
+        fetchDailyHabitStats();
       }
-    }, [user]) // Depend on user, so it refetches if user changes (e.g., login/logout)
+    }, [user, isEncryptionKeyLoaded]) // Depend on isEncryptionKeyLoaded
   );
+
+  const decryptData = (encryptedData: string | undefined | null) => { // Added type for clarity
+    // Explicitly check if encryptedData is a string and of sufficient length
+    if (!encryptionKey || typeof encryptedData !== 'string' || encryptedData.length < 8) {
+      console.log('Skipping decryption: Invalid key, or encryptedData not a string or too short.');
+      return null;
+    }
+    try {
+      const bytes = CryptoJS.AES.decrypt(encryptedData, encryptionKey);
+      const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+      
+      if (!decryptedString) {
+        console.error('Decryption yielded an empty string. Likely decryption failed due to incorrect key or corrupted data.');
+        return null;
+      }
+      return JSON.parse(decryptedString);
+    } catch (error) {
+      console.error('Decryption or JSON parsing error:', error);
+      return null;
+    }
+  };
 
   const getCleanDateString = (date: Date): string => {
     return date.toISOString().split('T')[0];
   };
 
   const formatLocalYYYYMMDD = (date: Date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth()+1).padStart(2,'0');
-  const d = String(date.getDate()).padStart(2,'0');
-  return `${y}-${m}-${d}`;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   };
 
-  // Added fetchDailyHabitStats function
   const fetchDailyHabitStats = async () => {
-    if (!user) return;
+    if (!user) return; // This check is sufficient given useFocusEffect dependency
+
     try {
       const todayKey = formatLocalYYYYMMDD(new Date());
       const start = new Date();
@@ -97,7 +119,7 @@ export default function TabOneScreen() {
         collection(db, 'daily_habits'),
         where('userId', '==', user.uid),
         where('date', '>=', startKey),
-        where('date', '<=', todayKey)      // <— now truly includes today
+        where('date', '<=', todayKey)
       );
       const querySnapshot = await getDocs(q);
 
@@ -116,9 +138,10 @@ export default function TabOneScreen() {
     }
   };
 
-
   const loadMoodData = async () => {
-    if (!user) return;
+    // This check is redundant if the useCallback depends on isEncryptionKeyLoaded,
+    // but it's good for safety if loadMoodData is called elsewhere.
+    if (!user || !isEncryptionKeyLoaded || !encryptionKey) return;
 
     try {
       setLoading(true);
@@ -133,14 +156,21 @@ export default function TabOneScreen() {
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        const decryptedData = decryptData(data.encryptedContent);
-        if (decryptedData && decryptedData.mood) {
+        // Use || to try both fields for backwards compatibility if needed
+        const encryptedDataFromFirestore = data.encryptedContent || data.cryptedContent;
+        const decryptedData = decryptData(encryptedDataFromFirestore);
+
+        // Robust check: Ensure decryptedData is an object and has a 'mood' property
+        if (decryptedData && typeof decryptedData === 'object' && decryptedData.mood) {
           const entryDate = new Date(decryptedData.date).toISOString().split('T')[0];
 
           if (!moodByDate[entryDate]) {
             moodByDate[entryDate] = [];
           }
           moodByDate[entryDate].push(decryptedData.mood);
+        } else {
+          // Log a warning for entries that could not be decrypted or had missing mood
+          console.warn('Skipping entry due to invalid decrypted data or missing mood:', decryptedData, 'from document ID:', doc.id);
         }
       });
 
@@ -152,7 +182,7 @@ export default function TabOneScreen() {
     }
   };
 
-  const handleDayPress = (day) => {
+  const handleDayPress = (day: { dateString: string }) => {
     const now = new Date();
     const todayDateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
@@ -179,7 +209,6 @@ export default function TabOneScreen() {
     return `${year}-${mm}-${dd}`;
   };
 
-  // Modified getMarkedDates to handle both mood and habit views
   const getMarkedDates = useCallback(() => {
     const todayDate = getTodayDate();
     const marked: any = {
@@ -193,11 +222,11 @@ export default function TabOneScreen() {
     if (isHabitView) {
       Object.keys(dailyHabitStats).forEach(date => {
         const stats = dailyHabitStats[date];
-        if (stats) { // Only mark with habit stats if a record exists in dailyHabitStats
+        if (stats) {
           if (date === todayDate) {
             marked[date] = {
-              ...marked[date], // Preserve selected styles for today
-              habitStats: stats, // Use actual stats (could be 0/0 if habits array is empty)
+              ...marked[date],
+              habitStats: stats,
             };
           } else {
             marked[date] = {
@@ -242,8 +271,7 @@ export default function TabOneScreen() {
       });
     }
     return marked;
-  }, [isHabitView, moodData, dailyHabitStats]); // Dependencies for useCallback
-
+  }, [isHabitView, moodData, dailyHabitStats]);
 
   const getStreakCount = () => {
     const today = new Date();
@@ -260,13 +288,12 @@ export default function TabOneScreen() {
         break;
       }
     }
-
     return streak;
   };
 
   const getMoodStats = () => {
     const allMoods = Object.values(moodData).flat();
-    const moodCounts = {};
+    const moodCounts: { [key: string]: number } = {}; // Explicitly type moodCounts
 
     allMoods.forEach(mood => {
       moodCounts[mood] = (moodCounts[mood] || 0) + 1;
@@ -282,16 +309,15 @@ export default function TabOneScreen() {
   const stats = getMoodStats();
   const streak = getStreakCount();
 
-  // Modified CustomDayWithMultiMoods to conditionally render based on isHabitView
-  const CustomDayWithMultiMoods = ({ date, state, marking, onPress }) => {
+  const CustomDayWithMultiMoods = ({ date, state, marking, onPress }: any) => { // Use 'any' for marking due to complex type
     const isSelected = marking?.selected;
     const moodsForDay = marking?.moods || [];
-    const habitStatsForDay = marking?.habitStats; // Get habit stats for the day
+    const habitStatsForDay = marking?.habitStats;
 
     return (
       <TouchableOpacity
         style={[
-          styles.dayWrapper, // Define these styles
+          styles.dayWrapper,
           isSelected && styles.selectedDayWrapper,
           state === 'disabled' && styles.disabledDayWrapper,
         ]}
@@ -308,18 +334,18 @@ export default function TabOneScreen() {
           {date.day}
         </Text>
         {isHabitView ? (
-          habitStatsForDay ? ( // Show habit stats if in habit view and data exists
+          habitStatsForDay ? (
             <View style={styles.habitCountContainer}>
               <Text style={styles.habitCountText}>
                 {habitStatsForDay.completed}/{habitStatsForDay.total}
               </Text>
               <MaterialCommunityIcons name="check-all" size={12} color="#6B4EFF" />
             </View>
-          ) : null // If no habit record for the day, show nothing in habit view
+          ) : null
         ) : (
-          moodsForDay.length > 0 && ( // Show mood icons if in mood view and moods exist
+          moodsForDay.length > 0 && (
             <View style={styles.multiMoodContainer}>
-              {moodsForDay.map((mood, index) => {
+              {moodsForDay.map((mood: string, index: number) => {
                 const moodIcon = MOODS[mood]?.icon;
                 const moodColor = MOODS[mood]?.color;
                 return (
@@ -342,51 +368,19 @@ export default function TabOneScreen() {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Hero Section */}
-      <LinearGradient
-        colors={['#6B4EFF', '#8A4FFF', '#A855F7']}
-        style={styles.heroSection}
-      >
+      <View style={styles.heroSection}>
         <View style={styles.heroContent}>
           <Image
             source={require('../../assets/images/logo2.png')}
             style={styles.logo}
           />
-          <Text style={styles.heroTitle}>Welcome to Introspect</Text>
-          <Text style={styles.heroSubtitle}>Your journey of self-discovery</Text>
-        </View>
-      </LinearGradient>
-
-      {/* Stats Section */}
-      <View style={styles.statsSection}>
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <MaterialCommunityIcons name="fire" size={24} color="#FF6B6B" />
-            <Text style={styles.statNumber}>{streak}</Text>
-            <Text style={styles.statLabel}>Day Streak</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <MaterialCommunityIcons
-              name={MOODS[stats.topMood]?.icon || 'emoticon-outline'}
-              size={24}
-              color={MOODS[stats.topMood]?.color || '#ccc'}
-            />
-            <Text style={styles.statNumber}>{stats.totalEntries}</Text>
-            <Text style={styles.statLabel}>Entries</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <MaterialCommunityIcons name="calendar-heart" size={24} color="#4CAF50" />
-            <Text style={styles.statNumber}>{Object.keys(moodData).length}</Text>
-            <Text style={styles.statLabel}>Active Days</Text>
-          </View>
+          <Text style={styles.heroTitle}>Welcome to your Journey of self-discovery</Text>
         </View>
       </View>
 
       {/* Calendar Section */}
       <View style={styles.calendarSection}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Your Journey</Text>
           <Text style={styles.sectionSubtitle}>Tap any day to explore your memories</Text>
           {/* Toggle Button */}
           <TouchableOpacity
@@ -437,7 +431,7 @@ export default function TabOneScreen() {
                       color={mood.color}
                       style={styles.legendIcon}
                     />
-                    <Text style={styles.legendText}>{key.replace(/([A-Z])/g, ' $1').toLowerCase().replace(/^\w/, c => c.toUpperCase())}</Text>
+                    <Text style={styles.legendText}>{mood.label}</Text>
                   </View>
                 ))}
               </ScrollView>

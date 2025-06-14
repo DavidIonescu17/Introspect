@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { router } from 'expo-router';
 import {
   View,
@@ -10,6 +10,8 @@ import {
   Modal,
 } from 'react-native';
 import { PieChart } from 'react-native-chart-kit';
+import { onSnapshot } from 'firebase/firestore';
+
 import {
   getFirestore,
   collection,
@@ -36,20 +38,24 @@ import MasterHabitsManager from '../../components/MasterHabitsManager';
 const { width: screenWidth } = Dimensions.get('window');
 
 // Encryption key - should match the one from your journal component
-const ENCRYPTION_KEY = 'ezYxGHuBw5W5jKewAnJsmie52Ge14WCzk+mIW8IFD6gzl/ubFlHjGan+LbcJ2M1m';
+import { getEncryptionKey } from '../utils/encryption'; // Import getEncryptionKey
 
 // Decryption function
-const decryptData = (encryptedData) => {
+const decryptData = (encryptedData: string | undefined | null, encryptionKey: string | null) => {
+  if (!encryptionKey || typeof encryptedData !== 'string' || encryptedData.length < 8) {
+    // console.warn('Skipping decryption: Invalid key, or encryptedData not a string or too short.', { encryptionKeyReady: !!encryptionKey, isString: typeof encryptedData === 'string', length: encryptedData?.length });
+    return null;
+  }
   try {
-    const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
+    const bytes = CryptoJS.AES.decrypt(encryptedData, encryptionKey);
     const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
     if (!decryptedText) {
-      
+      console.error('Decryption yielded an empty string. Likely decryption failed due to incorrect key or corrupted data.');
       return null;
     }
     return JSON.parse(decryptedText);
   } catch (error) {
-    
+    console.error('Decryption or JSON parsing error:', error);
     return null;
   }
 };
@@ -206,6 +212,7 @@ const BadgesScreen = ({ badges, unlockedBadges, onClose }) => (
 );
 
 const MoodProfileDashboard = ({ navigation }) => {
+  const [activeDays, setActiveDays] = useState(0);
   const [moodData, setMoodData] = useState([]);
   const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date()); // State for month navigation
   const [streak, setStreak] = useState(0);
@@ -218,10 +225,22 @@ const MoodProfileDashboard = ({ navigation }) => {
   const [showMasterHabitsModal, setShowMasterHabitsModal] = useState(false); // New state for habits modal
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [chartViewMode, setChartViewMode] = useState('pieChart'); // 'pieChart' or 'breakdown'
+  const [encryptionKey, setEncryptionKey] = useState<string | null>(null);
+  const [isEncryptionKeyLoaded, setIsEncryptionKeyLoaded] = useState(false);
+
 
   const auth = getAuth();
   const user = auth.currentUser;
   const userId = user ? user.uid : null;
+  
+  useEffect(() => {
+    const loadKey = async () => {
+      const key = await getEncryptionKey();
+      setEncryptionKey(key);
+      setIsEncryptionKeyLoaded(true);
+    };
+    loadKey();
+  }, []);
 
   // Function to load user profile from Firestore
   const loadUserProfile = useCallback(async () => {
@@ -266,87 +285,97 @@ const MoodProfileDashboard = ({ navigation }) => {
   }, [userId, isSavingProfile]);
 
   // Load real entries from Firebase and calculate streak
-  const loadEntriesAndCalculateStats = useCallback(async () => {
-    if (!userId) {
-      setMoodData(generateMockData()); // Assuming generateMockData exists for unauthenticated users
-      setLoading(false);
-      return;
-    }
+  useEffect(() => {
+  if (!userId || !isEncryptionKeyLoaded || !encryptionKey) return;
 
-    setLoading(true);
-    try {
-      const q = query(
-        collection(db, 'journal_entries'),
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc')
-      );
+  const q = query(
+    collection(db, 'journal_entries'),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc')
+  );
 
-      const querySnapshot = await getDocs(q);
-      const loadedEntries = [];
+  const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const loadedEntries = [];
 
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const decryptedData = decryptData(data.encryptedContent);
-        if (decryptedData) {
-          let entryDate;
-          if (data.createdAt instanceof Timestamp) {
-            entryDate = data.createdAt.toDate();
-          } else if (data.createdAt && data.createdAt.seconds) {
-            entryDate = new Date(data.createdAt.seconds * 1000);
-          } else {
-            entryDate = new Date(decryptedData.date);
-          }
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      const encryptedDataFromFirestore = data.encryptedContent || data.cryptedContent;
+      const decryptedData = decryptData(encryptedDataFromFirestore, encryptionKey);
 
-          loadedEntries.push({
-            id: doc.id,
-            ...decryptedData,
-            createdAt: entryDate,
-            date: entryDate.toISOString().split('T')[0]
-          });
-        }
-      });
-
-      const sortedLoadedEntries = [...loadedEntries].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-
-      setMoodData(sortedLoadedEntries);
-      setTotalEntries(sortedLoadedEntries.length);
-
-      // Calculate journaling streak
-      let currentStreak = 0;
-      if (sortedLoadedEntries.length > 0) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const entryDates = new Set(sortedLoadedEntries.map(entry => {
-          const d = new Date(entry.createdAt);
-          d.setHours(0, 0, 0, 0);
-          return d.getTime();
-        }));
-
-        let checkDate = new Date(today);
-        let hasEntryToday = entryDates.has(checkDate.getTime());
-
-        if (hasEntryToday) {
-          currentStreak++;
-          checkDate.setDate(checkDate.getDate() - 1);
+      if (decryptedData && typeof decryptedData === 'object') {
+        let entryDate: Date;
+        if (data.createdAt instanceof Timestamp) {
+          entryDate = data.createdAt.toDate();
+        } else if (data.createdAt?.seconds) {
+          entryDate = new Date(data.createdAt.seconds * 1000);
+        } else if (decryptedData.date) {
+          entryDate = new Date(decryptedData.date);
         } else {
-          checkDate.setDate(checkDate.getDate() - 1);
+          return;
         }
 
-        while (entryDates.has(checkDate.getTime())) {
-          currentStreak++;
-          checkDate.setDate(checkDate.getDate() - 1);
-        }
+        const moodKey = MOODS.hasOwnProperty(decryptedData.mood) ? decryptedData.mood : 'neutral';
+
+        loadedEntries.push({
+          id: doc.id,
+          ...decryptedData,
+          createdAt: entryDate,
+          date: entryDate.toISOString().split('T')[0],
+          mood: moodKey,
+        });
       }
-      setStreak(currentStreak);
+    });
 
-    } catch (error) {
-      setMoodData(generateMockData());
-      setStreak(0);
-    } finally {
-      setLoading(false);
+    const sortedLoadedEntries = [...loadedEntries].sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
+    );
+
+    setMoodData(sortedLoadedEntries);
+    setTotalEntries(sortedLoadedEntries.length);
+
+    const activeDaySet = new Set(
+      sortedLoadedEntries.map((entry) => {
+        const d = new Date(entry.createdAt);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+      })
+    );
+    setActiveDays(activeDaySet.size);
+
+    let currentStreak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let checkDay = new Date(today);
+    let firstCheck = true;
+
+    while (true) {
+      const checkDayTime = checkDay.getTime();
+
+      if (firstCheck) {
+        if (!activeDaySet.has(checkDayTime)) {
+          checkDay.setDate(checkDay.getDate() - 1);
+          firstCheck = false;
+          continue;
+        }
+      } else {
+        if (!activeDaySet.has(checkDayTime)) break;
+      }
+
+      currentStreak++;
+      checkDay.setDate(checkDay.getDate() - 1);
+      firstCheck = false;
+
+      if (currentStreak > sortedLoadedEntries.length + 5) break;
     }
-  }, [userId]);
+
+    setStreak(currentStreak);
+    setLoading(false);
+  });
+
+  return () => unsubscribe();
+}, [userId, isEncryptionKeyLoaded, encryptionKey]);
+
 
   // Get filtered data for selected month based on currentDisplayDate
   const getMonthlyData = useCallback(() => {
@@ -389,14 +418,13 @@ const MoodProfileDashboard = ({ navigation }) => {
   useEffect(() => {
     if (userId) {
       loadUserProfile();
-      loadEntriesAndCalculateStats();
     } else {
       setMoodData(generateMockData()); // Assuming generateMockData is defined elsewhere
       setLoading(false);
       setUserName('Guest User');
       setUserAvatar('👤');
     }
-  }, [userId, loadUserProfile, loadEntriesAndCalculateStats]);
+  }, [userId, loadUserProfile]);
 
 
   // Handle month navigation
@@ -982,6 +1010,7 @@ const MoodProfileDashboard = ({ navigation }) => {
         <View style={styles.statsContainer}>
           <StatCard icon="🔥" value={streak} label="Day Streak" gradient="#8B5CF6" />
           <StatCard icon="📅" value={totalEntries} label="Total Entries" gradient="#3B82F6" />
+           <StatCard icon="📆"   value={activeDays}   label="Active Days"    gradient="#10B981" />
           <StatCard icon="🏆" value={unlockedBadges.length} label="Badges" gradient="#F59E0B" onPress={() => setShowBadgesScreen(true)} />
         </View>
       </View>

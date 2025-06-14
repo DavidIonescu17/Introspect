@@ -27,7 +27,7 @@ import CryptoJS from 'crypto-js';
 // Assuming db is imported from your firebaseConfig; adjust path as necessary.
 // This path MUST be correct for Firestore to work.
 import { db } from '../../firebaseConfig';
-
+import { getEncryptionKey } from '../utils/encryption';
 // Import VADER sentiment library
 // You'll need to install it: npm install vader-sentiment
 import Sentiment from 'vader-sentiment';
@@ -48,9 +48,6 @@ if (Platform.OS === 'android') {
 
 // --- Constants (copied from profile.tsx for self-containment, ideally centralized in a shared file) ---
 const { width: screenWidth } = Dimensions.get('window');
-
-// Ensure this key matches the one used for encryption in your journal component
-const ENCRYPTION_KEY = 'ezYxGHuBw5W5jKewAnJsmie52Ge14WCzk+mIW8IFD6gzl/ubFlHjGan+LbcJ2M1m';
 
 // Mood definitions with values and MaterialCommunityIcons (ensure consistency with your app)
 const MOODS = {
@@ -263,22 +260,9 @@ const HabitCalendar = ({ habitData, habitName, selectedMonth, onMonthChange, sel
 
 
 // --- Decryption Function (CRITICAL: Now expects JSON structure from journal.tsx) ---
-const decryptData = (encryptedData) => {
-  try {
-    const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
-    const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
-    if (!decryptedText) {
-      console.warn('Decryption resulted in empty string or failed to decrypt for some reason.');
-      return null;
-    }
-    // Now we expect it to always be a JSON string based on your saveEntry function
-    return JSON.parse(decryptedText);
-  } catch (error) {
-    console.error('Decryption or JSON parsing error. Data might be malformed or key is wrong:', error);
-    console.error('Problematic encrypted data (first 50 chars):', String(encryptedData).substring(0, 50) + '...');
-    return null;
-  }
-};
+// --- Decryption Function (acum folosește encryptionKey din state) ---
+
+
 
 const InsightsScreen = () => {
   const [processedEntries, setProcessedEntries] = useState([]); // Entries with sentiment and moodValue
@@ -290,11 +274,42 @@ const InsightsScreen = () => {
   const [showExplanation, setShowExplanation] = useState(false); // State for explanation visibility
   const [selectedHabit, setSelectedHabit] = useState<Habit | null>(null); // For calendar view
   const [selectedMonth, setSelectedMonth] = useState(new Date()); // For calendar navigation
+  const [encryptionKey, setEncryptionKey] = useState<string | null>(null);
+  const [isKeyLoaded, setIsKeyLoaded] = useState(false);
+  const [user, setUser] = useState(null);
+useEffect(() => {
+  const unsubscribe = getAuth().onAuthStateChanged(u => {
+      setUser(u);
+    });
+    return unsubscribe;
+  }, []);
+  const userId = user?.uid;
+  const decryptData = (encryptedData) => {
+  if (!encryptionKey) return null;
 
-  const auth = getAuth();
-  const user = auth.currentUser;
-  const userId = user ? user.uid : null;
+  try {
+    const bytes = CryptoJS.AES.decrypt(encryptedData, encryptionKey);
+    const result = bytes.toString(CryptoJS.enc.Utf8);
+    console.log('Decrypted string:', result); // Add this
+    if (result) return JSON.parse(result);
+  } catch (e) {
+    console.log('Decryption error:', e);
+  } 
+  return null;
+};
 
+  useEffect(() => {
+    getEncryptionKey()
+      .then(key => {
+        setEncryptionKey(key);
+        setIsKeyLoaded(true);
+      })
+      .catch(err => {
+        console.error('Nu am putut obține cheia de cripare:', err);
+        setIsKeyLoaded(true);
+      });
+  }, []);
+  
   // Function to toggle explanation visibility with animation
   const toggleExplanation = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -361,12 +376,7 @@ const InsightsScreen = () => {
 
   // --- Data Fetching and Processing ---
   const setupRealtimeListener = useCallback(() => {
-    if (!userId) {
-      console.warn('setupRealtimeListener: No user ID found. User might not be authenticated. Displaying no data.');
-      setProcessedEntries([]);
-      setLoading(false);
-      return () => { }; // Return a no-op unsubscribe function
-    }
+   
 
     setLoading(true); // Indicate loading has started
     const q = query(
@@ -455,30 +465,28 @@ const InsightsScreen = () => {
     // This will be used by the useEffect's cleanup.
     return unsubscribe;
   }, [userId]); // Dependency: userId
+useEffect(() => {
+  // don’t start until we have both a logged-in user and the encryption key
+  if (!userId || !isKeyLoaded) return;
 
-  useEffect(() => {
-    // Call the setup function and store the unsubscribe function
-    let unsubscribeJournal = () => { }; // Initialize with a no-op
-    let unsubscribeHabits = () => { }; // Initialize with a no-op
+  const unsubJournal = setupRealtimeListener();
+  const unsubHabits  = setupHabitsListener();
+  fetchAllMasterHabits();
 
-    if (userId) {
-      unsubscribeJournal = setupRealtimeListener();
-      unsubscribeHabits = setupHabitsListener();
-      fetchAllMasterHabits(); // Fetch all master habits on mount
-    } else {
-      setLoading(false);
-      setProcessedEntries([]);
-      setHabitsData([]);
-      setAllMasterHabits([]);
-    }
+  return () => {
+    unsubJournal();
+    unsubHabits();
+  };
+}, [
+  userId,
+  isKeyLoaded,
+  setupRealtimeListener,
+  setupHabitsListener,
+  fetchAllMasterHabits
+]);
 
     // Cleanup function: this will be called when the component unmounts
     // or before the effect re-runs (if dependencies change).
-    return () => {
-      unsubscribeJournal();
-      unsubscribeHabits();
-    };
-  }, [userId, setupRealtimeListener, setupHabitsListener, fetchAllMasterHabits]); // Dependencies
 
   // --- Habit Analytics Functions ---
   const getHabitAnalytics = useMemo(() => {

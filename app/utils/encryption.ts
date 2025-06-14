@@ -1,17 +1,27 @@
-import CryptoJS from 'crypto-js';
+// encryptionUtils.js
+import * as SecureStore from 'expo-secure-store';
+console.log('SecureStore:', SecureStore);
+const KEY_NAME = 'encryption_key';
 
-const ENCRYPTION_KEY = 'ezYxGHuBw5W5jKewAnJsmie52Ge14WCzk+mIW8IFD6gzl/ubFlHjGan+LbcJ2M1m'; // Keep this secure!
-
-export const encryptData = (data: any): string => {
-  return CryptoJS.AES.encrypt(JSON.stringify(data), ENCRYPTION_KEY).toString();
-};
-
-export const decryptData = (encryptedData: string): any | null => {
-  try {
-    const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
-    return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-  } catch (error) {
-    console.error('Decryption error:', error);
-    return null;
+// Generate a random 32-byte key as hex string
+function generateKey() {
+  const array = new Uint8Array(32);
+  if (typeof window !== "undefined" && window.crypto && window.crypto.getRandomValues) {
+    window.crypto.getRandomValues(array);
+  } else if (global.crypto && global.crypto.getRandomValues) {
+    global.crypto.getRandomValues(array);
+  } else {
+    // Fallback: not as strong
+    for (let i = 0; i < 32; i++) array[i] = Math.floor(Math.random() * 256);
   }
-};
+  return Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function getEncryptionKey() {
+  let key = await SecureStore.getItemAsync(KEY_NAME);
+  if (!key) {
+    key = generateKey();
+    await SecureStore.setItemAsync(KEY_NAME, key);
+  }
+  return key;
+}

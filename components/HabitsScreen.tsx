@@ -40,6 +40,22 @@ interface HabitsScreenProps {
   user: User | null;
 }
 
+// Define colors for habits
+const HABIT_COLORS = [
+  '#FF6B9D', // Pink
+  '#4ECDC4', // Teal
+  '#45B7D1', // Blue
+  '#96CEB4', // Green
+  '#FECA57', // Yellow
+  '#FF9FF3', // Light Pink
+  '#54A0FF', // Light Blue
+  '#5F27CD', // Purple
+  '#00D2D3', // Cyan
+  '#FF9F43', // Orange
+  '#6C5CE7', // Violet
+  '#A29BFE', // Light Purple
+];
+
 export default function HabitsScreen({ date, user }: HabitsScreenProps) {
   const [dailyHabits, setDailyHabits] = useState<UserHabit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,12 +64,18 @@ export default function HabitsScreen({ date, user }: HabitsScreenProps) {
   const masterHabitsCollection = collection(db, 'user_master_habits');
   const customHabitsPoolCollection = collection(db, 'user_custom_habits_pool');
 
-
   // Helper function to get a clean date for comparison
   const getCleanDate = (dateString: string): Date => {
     const d = new Date(dateString);
     d.setHours(0, 0, 0, 0); // Set to start of the day to ignore time
     return d;
+  };
+
+  // Get color for habit based on its index
+  const getHabitColor = (habitId: string, isCustom: boolean): string => {
+    const key = `${habitId}-${isCustom}`;
+    const index = key.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return HABIT_COLORS[index % HABIT_COLORS.length];
   };
 
   // Fetch daily habits for the specific date
@@ -88,7 +110,8 @@ export default function HabitsScreen({ date, user }: HabitsScreenProps) {
         // --- NEW LOGIC START ---
         if (isPastDate) {
             // For past dates: ALWAYS load habits exactly as found in Firestore.
-            // Do NOT try to merge with master list or repopulate from master if array is empty.            habitsToSet = (docData.habits || []) as UserHabit[];
+            // Do NOT try to merge with master list or repopulate from master if array is empty.            
+            habitsToSet = (docData.habits || []) as UserHabit[];
         } else {
             // It's today or a future date:
             if (docData.habits && docData.habits.length > 0) {
@@ -280,10 +303,54 @@ export default function HabitsScreen({ date, user }: HabitsScreenProps) {
     fetchDailyHabits();
   }, [date, user]);
 
+  // Separate habits into completed and incomplete
+  const incompleteHabits = dailyHabits.filter(habit => !habit.completed);
+  const completedHabits = dailyHabits.filter(habit => habit.completed);
+
+  const renderHabit = (habit: UserHabit) => {
+    const habitColor = getHabitColor(habit.id, habit.isCustom);
+    
+    return (
+      <View 
+        key={`${habit.id}-${habit.isCustom ? 'custom' : 'classic'}`} 
+        style={[
+          styles.habitItem,
+          { 
+            backgroundColor: habitColor,
+            opacity: habit.completed ? 0.7 : 1,
+          }
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.habitContent}
+          onPress={() => toggleHabitCompletion(habit)}
+        >
+          <MaterialCommunityIcons
+            name={habit.completed ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+            size={24}
+            color="white"
+            style={styles.habitIcon}
+          />
+          <Text style={[
+            styles.habitText, 
+            { color: 'white', fontWeight: '500' },
+            habit.completed && { textDecorationLine: 'line-through' }
+          ]}>
+            {habit.name}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => removeHabitFromDay(habit)}
+          style={styles.deleteHabitButton}
+        >
+          <MaterialCommunityIcons name="close-circle" size={20} color="white" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.habitsContainer}>
-      {/* List of Habits for the Day */}
       <ScrollView style={styles.dailyHabitsList}>
         {isLoading ? (
           <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 20 }} />
@@ -295,35 +362,29 @@ export default function HabitsScreen({ date, user }: HabitsScreenProps) {
             </Text>
           </View>
         ) : (
-          dailyHabits.map((habit) => (
-            // Ensure a unique key using both id and isCustom to differentiate between classic and custom habits with same name/id
-            <View key={`${habit.id}-${habit.isCustom ? 'custom' : 'classic'}`} style={styles.habitItem}>
-              <TouchableOpacity
-                style={styles.habitContent}
-                onPress={() => toggleHabitCompletion(habit)}
-              >
-                <MaterialCommunityIcons
-                  name={habit.completed ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
-                  size={24}
-                  color={habit.completed ? '#4CAF50' : '#888'}
-                  style={styles.habitIcon}
-                />
-                <Text style={[styles.habitText, habit.completed && styles.completedHabitText]}>
-                  {habit.name}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => removeHabitFromDay(habit)} // "Delete just for that day"
-                style={styles.deleteHabitButton}
-              >
-                <MaterialCommunityIcons name="close-circle" size={20} color="#FF6347" />
-              </TouchableOpacity>
-            </View>
-          ))
+          <>
+            {/* To Do Section */}
+            {incompleteHabits.length > 0 && (
+              <View style={styles.sectionContainer}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>To Do</Text>
+                </View>
+                {incompleteHabits.map(renderHabit)}
+              </View>
+            )}
+
+            {/* Done Section */}
+            {completedHabits.length > 0 && (
+              <View style={styles.sectionContainer}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Done</Text>
+                </View>
+                {completedHabits.map(renderHabit)}
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
-
-      {/* The "Add Habit" button and modal are now removed as master habits are managed elsewhere */}
     </View>
   );
 }

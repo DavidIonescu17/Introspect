@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import 'react-native-get-random-values';
-import * as CryptoJS from 'crypto-js';
+import * as SecureStore from 'expo-secure-store'; // Still needed for getEncryptionKey from shared module
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet,
@@ -18,17 +18,22 @@ import {
   Alert,
 } from 'react-native';
 import { OPENAI_API_KEY } from '../../key';
-
+import styles from '../styles/assistant.styles'
 // Import Firebase instances from your firebase.js file
 import { db, auth } from '../../firebaseConfig'; // Adjust path as needed
 import { collection, addDoc, updateDoc, doc, getDocs, query, where, orderBy } from 'firebase/firestore';
 
-interface Message {
+// Import CryptoJS for AES encryption
+import CryptoJS from 'crypto-js';
+
+// Import the getEncryptionKey from your shared encryption.ts module
+// Make sure the path is correct based on your project structure
+import { getEncryptionKey } from '../utils/encryption'; // Assuming encryption.ts is at ../../encryption.ts
+interface Message { 
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
 }
-
 // Define the system message that sets the AI's role and boundaries
 const THERAPIST_SYSTEM_MESSAGE = {
   role: 'system',
@@ -56,8 +61,67 @@ interface Conversation {
   encryptedData?: string; // For storing encrypted conversations
 }
 
-const STORAGE_KEY = 'chatbot_conversations';
-const ENCRYPTION_KEY_STORAGE = 'user_encryption_key';
+const STORAGE_KEY = 'chatbot_conversations'; // For local AsyncStorage fallback
+
+// Updated Encryption utility functions using CryptoJS.AES
+const encryptionUtils = {
+  /**
+   * Encrypts data using AES with the provided key.
+   * Data is stringified to JSON before encryption.
+   * @param data The data object to encrypt (e.g., Message[]).
+   * @param key The encryption key (string).
+   * @returns The encrypted data as a string.
+   */
+  encrypt: (data: any, key: string) => {
+    if (!key) {
+      console.error('Encryption key is missing for encryption.');
+      throw new Error('Encryption key not available.');
+    }
+    try {
+      const jsonString = JSON.stringify(data);
+      // CryptoJS.AES handles IV generation and padding internally
+      return CryptoJS.AES.encrypt(jsonString, key).toString();
+    } catch (error) {
+      console.error('CryptoJS AES Encryption error:', error);
+      throw new Error('Failed to encrypt data securely with AES.');
+    }
+  },
+
+  /**
+   * Decrypts AES encrypted data using the provided key.
+   * The decrypted string is then parsed back from JSON.
+   * @param encryptedData The encrypted data string.
+   * @param key The decryption key (string).
+   * @returns The decrypted data object.
+   */
+  decrypt: (encryptedData: string, key: string) => {
+    if (!key) {
+      console.error('Encryption key is missing for decryption.');
+      throw new Error('Encryption key not available.');
+    }
+    try {
+      // Decrypt returns a WordArray
+      const bytes = CryptoJS.AES.decrypt(encryptedData, key);
+      // Convert WordArray to UTF-8 string and parse JSON
+      const decryptedJson = bytes.toString(CryptoJS.enc.Utf8);
+
+      // Check if the decrypted string is empty or invalid JSON after decryption
+      if (!decryptedJson) {
+        console.warn('Decrypted string is empty. Possible decryption issue or empty original data.');
+        return null; // Or handle as an error indicating empty data
+      }
+      return JSON.parse(decryptedJson);
+    } catch (error) {
+      console.error('CryptoJS AES Decryption error:', error);
+      // More specific error for JSON parsing vs. crypto errors
+      if (error instanceof SyntaxError) {
+        console.error('JSON Parse error after decryption. Decrypted content might be corrupted or not valid JSON.');
+      }
+      throw new Error('Failed to decrypt data securely with AES.');
+    }
+  },
+};
+
 
 export default function ChatbotScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -81,74 +145,72 @@ export default function ChatbotScreen() {
     Keyboard.dismiss();
   };
 
-  // Generate or retrieve a user-specific encryption key
+  // Setup encryption key using the shared SecureStore utility
   const setupEncryptionKey = async () => {
     try {
       const currentUser = auth.currentUser;
       if (!currentUser) {
-        console.error('No authenticated user found');
+        console.error('No authenticated user found for encryption key setup.');
+        // Potentially sign in anonymously if no user is found and required
         return;
       }
       
-      // Use a user-specific storage key
-      const userKeyStorage = `${ENCRYPTION_KEY_STORAGE}_${currentUser.uid}`;
-      let key = await AsyncStorage.getItem(userKeyStorage);
-      
-      if (!key) {
-        // Generate a key using a more reliable method for React Native
-        const randomArray = new Uint8Array(32); // 256 bits
-        crypto.getRandomValues(randomArray);
-        
-        // Convert to hex string
-        key = Array.from(randomArray)
-          .map(b => b.toString(16).padStart(2, '0'))
-          .join('');
-          
-        await AsyncStorage.setItem(userKeyStorage, key);
-      }
-      
+      // Use the getEncryptionKey from the imported shared module
+      // Pass currentUser.uid to ensure a unique key per user
+      const key = await getEncryptionKey(currentUser.uid);
       setEncryptionKey(key);
     } catch (error) {
       console.error('Error setting up encryption key:', error);
-      // Fallback to a less secure but functional method
-      if (!encryptionKey) {
-        const fallbackKey = generateFallbackKey();
-        setEncryptionKey(fallbackKey);
-        await AsyncStorage.setItem(userKeyStorage, fallbackKey);
-      }
+      Alert.alert(
+        'Encryption Error',
+        'Failed to setup secure encryption. Please restart the app.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
   // Check authentication and load user data
-// 1. When user is authenticated, setup encryption key
-useEffect(() => {
-  const setup = async () => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      await setupEncryptionKey();
-    }
-  };
+  useEffect(() => {
+    // Listen for auth state changes to ensure user is available before key setup
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        await setupEncryptionKey();
+      } else {
+        // Handle no user case, e.g., sign in anonymously or prompt login
+        console.log("No user logged in, or logging out.");
+        // You might want to clear sensitive data if user logs out
+        setEncryptionKey('');
+        setConversations([]);
+        setMessages([]);
+        setCurrentConversationId(null);
+      }
+    });
 
-  setup();
-}, []);
+    return unsubscribe; // Cleanup the auth state listener
+  }, []); // Run only once on component mount
 
-// 2. When encryption key is ready, load conversations
-useEffect(() => {
-  const loadConversations = async () => {
-    const currentUser = auth.currentUser;
-    if (currentUser && encryptionKey) {
-      await loadUserConversations();
-    }
-  };
 
-  loadConversations();
-}, [encryptionKey]);
+  // When encryption key is ready, load conversations
+  useEffect(() => {
+    const loadConversations = async () => {
+      const currentUser = auth.currentUser;
+      if (currentUser && encryptionKey) {
+        await loadUserConversations();
+      } else if (currentUser && !encryptionKey) {
+        // Key might still be loading, or failed to load.
+        // This log helps debug potential timing issues.
+        console.log('User present but encryption key not yet available, waiting to load conversations.');
+      }
+    };
+
+    loadConversations();
+  }, [encryptionKey, auth.currentUser]); // Re-run when key or user changes
 
   const loadUserConversations = async () => {
     try {
       const currentUser = auth.currentUser;
-      if (!currentUser) {
-        console.error('Cannot load conversations: No authenticated user');
+      if (!currentUser || !encryptionKey) { // Ensure both user and key are ready
+        console.error('Cannot load conversations: User or encryption key not available.');
         return;
       }
       
@@ -167,20 +229,26 @@ useEffect(() => {
         const data = doc.data();
         
         // Attempt to decrypt the conversation
-        
         let decryptedMessages: Message[] = [];
         try {
           if (data.encryptedData && encryptionKey) {
-            const bytes = CryptoJS.AES.decrypt(data.encryptedData, encryptionKey);
-            decryptedMessages = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+            // Use the new encryptionUtils.decrypt function
+            decryptedMessages = encryptionUtils.decrypt(data.encryptedData, encryptionKey);
           }
         } catch (error) {
-          console.error(`Error decrypting conversation ${doc.id}:`, error);
+          console.error(`ERROR: Failed to decrypt conversation ${doc.id}:`, error);
+          // Alert the user about decryption failure for a specific conversation
+          // This prevents the whole app from breaking if one conversation is corrupt
+          Alert.alert(
+            'Decryption Failed',
+            `Could not decrypt conversation '${data.preview || doc.id}'. It might be corrupted or encrypted with a different key.`,
+            [{ text: 'OK' }]
+          );
         }
         
         loadedConversations.push({
           id: doc.id,
-          messages: decryptedMessages,
+          messages: decryptedMessages, // Add decrypted messages, could be empty if decryption failed
           lastUpdated: data.lastUpdated,
           preview: data.preview || 'Conversation',
         });
@@ -188,7 +256,8 @@ useEffect(() => {
       
       setConversations(loadedConversations);
       
-      // Also save locally for offline access
+      // Also save locally for offline access (consider if you need to encrypt local storage too)
+      // For now, storing decrypted for local access. If local storage needs encryption, it's a separate step.
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(loadedConversations));
     } catch (error) {
       console.error('Error loading conversations from Firebase:', error);
@@ -201,6 +270,7 @@ useEffect(() => {
     try {
       const storedConversations = await AsyncStorage.getItem(STORAGE_KEY);
       if (storedConversations) {
+        // Assume local storage does not store encrypted data for simplicity, or add decryption here if it does
         setConversations(JSON.parse(storedConversations));
       }
     } catch (error) {
@@ -209,20 +279,24 @@ useEffect(() => {
   };
 
   const encryptAndSaveConversation = async () => {
-    if (!currentConversationId || !messages.length) return;
+    // Only save if there's a current conversation and messages to save, and encryption key is ready
+    if (!currentConversationId || !messages.length || !encryptionKey) {
+      console.log('Skipping save: No conversation ID, no messages, or no encryption key.');
+      return;
+    }
     
     const currentUser = auth.currentUser;
-    if (!currentUser || !encryptionKey) {
-      console.error('Cannot save: Missing user or encryption key');
+    if (!currentUser) {
+      console.error('Cannot save: Missing authenticated user.');
       return;
     }
 
     try {
-      // Encrypt the messages array with the user's personal key
-      const encryptedData = CryptoJS.AES.encrypt(
-        JSON.stringify(messages),
+      // Encrypt the messages array with the user's personal key using CryptoJS.AES
+      const encryptedData = encryptionUtils.encrypt(
+        messages, // Pass the messages array directly, encrypt function will stringify
         encryptionKey
-      ).toString();
+      );
       
       // Create preview from the last message (no sensitive data in preview)
       const preview = messages[messages.length - 1].content.substring(0, 50) + '...';
@@ -234,29 +308,36 @@ useEffect(() => {
         encryptedData,
         preview,
         lastUpdated,
-        userId: currentUser.uid // This ensures only this user can access it
+        userId: currentUser.uid // This ensures only this user can access it via security rules
       });
       
-      // Update local state
+      // Update local state (only update metadata, messages are already current)
       const updatedConversations = conversations.map(conv =>
         conv.id === currentConversationId
           ? {
               ...conv,
-              messages,
               lastUpdated,
-              preview
-            }
+              preview,
+              messages: messages    
+             }
           : conv
       );
       
       setConversations(updatedConversations);
-      
-      // Update local storage backup
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedConversations));
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedConversations))
+      // Update local storage backup (consider if local backup should also be encrypted)
+      // For now, storing decrypted messages in local storage for offline use.
+      const localConversations = updatedConversations.map(conv => {
+        if (conv.id === currentConversationId) {
+          return { ...conv, messages: messages }; // Store the current decrypted messages
+        }
+        return conv;
+      });
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(localConversations));
     } catch (error) {
       console.error('Error encrypting and saving conversation:', error);
       Alert.alert(
-        'Error',
+        'Save Error',
         'Failed to save conversation securely. Your data might not be backed up.',
         [{ text: 'OK' }]
       );
@@ -266,17 +347,17 @@ useEffect(() => {
   const startNewConversation = async () => {
     const currentUser = auth.currentUser;
     if (!currentUser || !encryptionKey) {
-      console.error('Cannot create conversation: No authenticated user or encryption key');
+      console.error('Cannot create conversation: No authenticated user or encryption key.');
       return;
     }
     
     try {
       // Create initial empty message array and encrypt it
       const emptyMessages: Message[] = [];
-      const encryptedData = CryptoJS.AES.encrypt(
-        JSON.stringify(emptyMessages),
+      const encryptedData = encryptionUtils.encrypt(
+        emptyMessages, // Encrypt an empty array initially
         encryptionKey
-      ).toString();
+      );
       
       // Add a new document to Firebase with user ID for privacy
       const docRef = await addDoc(collection(db, "conversations"), {
@@ -294,7 +375,7 @@ useEffect(() => {
       };
     
       // Update conversations in state and storage
-      const updatedConversations = [...conversations, newConversation];
+      const updatedConversations = [newConversation, ...conversations]; // Add to top
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedConversations));
       setConversations(updatedConversations);
       setCurrentConversationId(docRef.id);
@@ -313,41 +394,80 @@ useEffect(() => {
   const loadConversation = (conversationId: string) => {
     const conversation = conversations.find(conv => conv.id === conversationId);
     if (conversation) {
-      setIsLoadingConversation(true);  // 👈 set the flag before loading
+      setIsLoadingConversation(true); // Flag to prevent immediate save after loading
       setMessages(conversation.messages);
       setCurrentConversationId(conversationId);
       setHistoryModalVisible(false);
     }
   };
-  
 
   const sendMessage = async () => {
     if (!userInput.trim()) return;
     
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      console.error('Cannot send message: No authenticated user');
+      console.error('Cannot send message: No authenticated user.');
+      // Optionally, prompt user to log in
+      Alert.alert('Not Logged In', 'Please log in to send messages.', [{ text: 'OK' }]);
       return;
     }
-    
-    // Create new conversation if none exists
-    if (!currentConversationId) {
-      await startNewConversation();
+    // Ensure encryption key is loaded before sending messages that will be saved
+    if (!encryptionKey) {
+        console.error('Encryption key not loaded, cannot send message and save.');
+        Alert.alert('Setup Error', 'Encryption key is not ready. Please wait a moment or restart.', [{ text: 'OK' }]);
+        return;
     }
-  
+    
     dismissKeyboard();
-  
+
     const userMessage = {
       role: 'user' as const,
       content: userInput,
       timestamp: getCurrentTime(),
     };
   
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
     setLoading(true);
-    setUserInput('');
+    setUserInput(''); // Clear input immediately for better UX
+
+    let messagesToDisplay = [...messages, userMessage]; // Messages including the new user input
+
+    if (!currentConversationId) {
+      // This is the first message in a brand new conversation
+      try {
+        // Explicitly create the new conversation document with an initial empty state
+        // This ensures the document exists before any updateDoc calls.
+        const emptyEncryptedData = encryptionUtils.encrypt([], encryptionKey);
+        const newDocRef = await addDoc(collection(db, "conversations"), {
+          userId: currentUser.uid,
+          lastUpdated: new Date().toISOString(),
+          preview: 'New conversation', // Initial preview before messages are added
+          encryptedData: emptyEncryptedData // Store empty messages initially
+        });
+        setCurrentConversationId(newDocRef.id); // Update state with the new conversation ID
+
+        // Also add this new conversation to the `conversations` list in state
+        // (This will be updated with the first real message later by useEffect)
+        const newConversationEntry: Conversation = {
+          id: newDocRef.id,
+          messages: [], // Will be populated by setMessages below
+          lastUpdated: new Date().toISOString(),
+          preview: 'New conversation'
+        };
+        setConversations(prev => [newConversationEntry, ...prev]);
+
+      } catch (error) {
+        console.error('Error creating new conversation for first message:', error);
+        Alert.alert('Error', 'Failed to start a new conversation for your message.', [{ text: 'OK' }]);
+        setLoading(false);
+        return; // Stop execution if initial conversation creation fails
+      }
+    }
   
+    // Now currentConversationId is guaranteed to be set if we've reached this point.
+    // Update messages state to include the user's latest message.
+    // This state update will trigger the useEffect to save the conversation.
+    setMessages(messagesToDisplay);
+
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -357,9 +477,10 @@ useEffect(() => {
         },
         body: JSON.stringify({
           model: 'gpt-3.5-turbo',
+          // Filter out timestamp for API, and ensure system message is first
           messages: [
             THERAPIST_SYSTEM_MESSAGE,
-            ...updatedMessages,
+            ...messagesToDisplay, // Use messagesToDisplay which includes the user's message
           ].map(({ role, content }) => ({ role, content })),
           max_tokens: 250,
           temperature: 0.7,
@@ -375,36 +496,48 @@ useEffect(() => {
           timestamp: getCurrentTime(),
         };
   
-        const finalMessages = [...updatedMessages, botMessage];
-        setMessages(finalMessages);
-        
-        // Chat state updated, useEffect will trigger the save
+        const finalMessages = [...messagesToDisplay, botMessage]; // Include bot message
+        setMessages(finalMessages); // This will trigger the save useEffect
+      } else {
+        // Handle cases where API response is valid but no choices are returned
+        console.warn('OpenAI API returned no choices:', data);
+        const errorMessage = {
+          role: 'assistant' as const,
+          content: "I received an empty response from the AI. Please try again.",
+          timestamp: getCurrentTime(),
+        };
+        setMessages(prev => [...prev, errorMessage]); // Add error message to current messages
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error fetching from OpenAI:', error);
       const errorMessage = {
-        role: 'assistant',
+        role: 'assistant' as const,
         content: "I apologize, but I'm having trouble responding right now. If you're in crisis, please call 988 or text HOME to 741741 for immediate support.",
         timestamp: getCurrentTime(),
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => [...prev, errorMessage]); // Add error message to current messages
     } finally {
       setLoading(false);
     }
   };
 
-  // Save conversation whenever messages change
+  // Save conversation whenever messages or currentConversationId change
   useEffect(() => {
+    // Prevent saving immediately after loading a conversation, as messages state is updated from Firebase
     if (isLoadingConversation) {
-      setIsLoadingConversation(false); // 👈 reset flag after loading
-      return; // 👈 skip saving when just loading
+      setIsLoadingConversation(false); // Reset flag after initial load
+      return;
     }
-  
+    
+    // Only attempt to save if currentConversationId and encryptionKey are set, and there are messages
     if (currentConversationId && messages.length > 0 && encryptionKey) {
       encryptAndSaveConversation();
+    } else if (currentConversationId && messages.length === 0 && encryptionKey) {
+        // This case is for a newly started conversation that is still empty after initial setup
+        // or a cleared conversation. We might want to save its empty state if currentConversationId is valid.
+        console.log('Conversation is empty, but ID is set. No content to save.');
     }
-  }, [messages]);
-  
+  }, [messages, currentConversationId, encryptionKey]); // Dependencies for saving
 
   const renderMessage = ({ item }: { item: Message }) => (
     <View style={styles.messageWrapper}>
@@ -440,7 +573,7 @@ useEffect(() => {
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Conversation History</Text>
           <View style={styles.securityBadge}>
-            <Text style={styles.securityBadgeText}>🔒 End-to-End Encrypted</Text>
+            <Text style={styles.securityBadgeText}>🔒 Securely Encrypted</Text>
           </View>
           <TouchableOpacity
             style={styles.newConversationButton}
@@ -538,213 +671,3 @@ useEffect(() => {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#6B4EFF',
-  },
-  header: {
-    backgroundColor: '#6B4EFF',
-    padding: 20,
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#6B4EFF',
-  },
-  headerText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  headerSubtext: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    marginTop: 5,
-    opacity: 0.9,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  chatContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 10,
-    flexGrow: 1, 
-  },
-  messageWrapper: {
-    marginVertical: 8,
-    maxWidth: '80%',
-  },
-  roleLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-    marginLeft: 12,
-  },
-  messageContainer: {
-    padding: 12,
-    borderRadius: 16,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    marginRight: -80
-  },
-  userMessage: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#6B4EFF',
-    borderBottomRightRadius: 4,
-  },
-  botMessage: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#F0F0F0',
-    borderBottomLeftRadius: 4,
-  },
-  messageText: {
-    fontSize: 16,
-    color: '#333',
-    lineHeight: 22,
-  },
-  userMessageText: {
-    color: '#FFFFFF',
-  },
-  timestamp: {
-    fontSize: 11,
-    color: '#999',
-    marginTop: 4,
-    alignSelf: 'flex-end',
-  },
-  userTimestamp: {
-    color: '#FFFFFF',
-    opacity: 0.8,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    backgroundColor: '#fff',
-  },
-  input: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#fff',
-    fontSize: 16,
-    maxHeight: 100,
-  },
-  sendButton: {
-    marginLeft: 12,
-    backgroundColor: '#6B4EFF',
-    borderRadius: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#B8B8B8',
-  },
-  sendButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 20,
-    width: '90%',
-    maxHeight: '80%',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  securityBadge: {
-    backgroundColor: '#E5FFEA',
-    borderRadius: 15,
-    padding: 8,
-    alignSelf: 'center',
-    marginBottom: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  securityBadgeText: {
-    color: '#1A9E42',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  conversationItem: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  conversationPreview: {
-    fontSize: 16,
-    marginBottom: 5,
-  },
-  conversationDate: {
-    fontSize: 12,
-    color: '#666',
-  },
-  closeButton: {
-    marginTop: 20,
-    padding: 15,
-    backgroundColor: '#6B4EFF',
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  historyButton: {
-    position: 'absolute',
-    left: 20,
-    padding: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 15,
-  },
-  historyButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  newConversationButton: {
-    backgroundColor: '#6B4EFF',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 20,
-  },
-  newConversationButtonText: {
-    color: 'white',
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  conversationMetadata: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 5,
-  },
-  conversationTime: {
-    fontSize: 12,
-    color: '#666',
-    marginLeft: 10,
-  },
-});
