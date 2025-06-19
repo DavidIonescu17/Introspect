@@ -66,9 +66,13 @@ For more details, refer to the thesis.pdf included in the repository.
 
 📌 Future Work
   Clinical validation through empirical user studies
+  
   Explore implementing tools to help users identify suitable therapy types and directly book appointments with relevant professionals.
+  
   Wearable device integration (e.g., sleep, HRV)
+  
   Advanced AI personalization (memory, proactive suggestions)
+  
   Multilingual support and localization
 
 
