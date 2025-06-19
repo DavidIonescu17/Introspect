@@ -1,6 +1,8 @@
 # Introspect 📱🧠  
 **A privacy-first mobile app for holistic mental well-being. Features AI support, encrypted journaling, habit tracking, personalized insights, and a verified therapist directory.**
 
+![App Preview](./assets/images/Overview.pdf)
+
 ## 🧩 Overview
 
 **Introspect** is a React Native mobile app developed as part of a Bachelor's thesis in Computer Science. It is designed to provide users with a secure, integrated, and evidence-based platform for managing their mental health through self-reflection, journaling, habit tracking, and AI-powered emotional support.  
