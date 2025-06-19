@@ -41,14 +41,19 @@ The app emphasizes **privacy**, **usability**, and **psychological value**, inte
    ```bash
    git clone https://github.com/DavidIonescu17/Introspect.git
    cd Introspect
-2. Install dependencies: npm install
+2. Install dependencies:
+   ```bash
+   npm install
 3. Set up your API keys:
    Create a key.ts file in the root folder and add your OpenAI API key:
+    ```bash
    export const OPENAI_API_KEY = 'your-key-here';
 4. Configure Firebase
     Add your Firebase config file firebaseConfig.ts
     Ensure Firestore, Auth, and Storage are properly initialized
-5. Run the app: npx expo start
+5. Run the app:
+   ```bash
+   npx expo start
 
 
 🧠 Security Notes
