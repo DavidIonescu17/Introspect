@@ -13,15 +13,15 @@ The app emphasizes **privacy**, **usability**, and **psychological value**, inte
 
 ## 🚀 Features
 
-- 📓 **End-to-end encrypted journaling**  
-- 🎯 **Customizable habit tracker and streak system**
-- 🤖 **AI Assistant** (empathetic, non-clinical support via OpenAI API)
-- 📈 **Mood and sentiment analysis**  
-- 🧘‍♀️ **Achievements and gamification** to promote well-being  
-- 📚 **Directory of licensed therapists in Romania**
-- 📆 **Calendar-based progress reflection**
-- 🔒 **Client-side encryption for sensitive user data** (Firebase + CryptoJS)
-- 🎵 *(Optional)* **Music association with journal entries via Spotify API** *(experimental)*
+📆 Interactive Calendar & Daily Reflection Hub: Provides a visual overview of your emotional journey and habit progress, allowing seamless navigation to detailed daily entries.
+📓 Secure & Comprehensive Daily Journaling: Capture your thoughts, feelings, and moments with free-form text, mood selections, and image attachments, all protected by client-side encryption.
+✅ Customizable Habit Manager & Tracking: Effortlessly create and manage personal habits (classic or custom with icons), track daily completion, and monitor your consistency with streak systems.
+🤖 Empathetic AI Support Assistant: Engage in private, non-clinical conversations with an AI powered by OpenAI API, designed to offer understanding and guide self-reflection, with direct access to crisis resources.
+📈 Personalized Insights & Data Visualization: Gain self-awareness through visual trends of your moods, detailed sentiment analysis of your journal entries (via VADER-Sentiment), and performance metrics of your habits.
+🏆 Achievements & Gamification System: Stay motivated and celebrate your progress with unlockable badges and milestones that reward consistent engagement and positive behaviors.
+📚 Verified Therapist Directory: Connect with licensed mental health professionals in Romania (approx. 35,000 professionals, sourced from COPSI) through a comprehensive search and filter system.
+👤 User Profile & Central Hub: Your personalized space to manage account details, quickly view recent insights, and easily access your Master Habits Manager.
+🔒 Robust Client-Side Encryption: All sensitive user data, including journal entries and AI conversations, is encrypted on your device using CryptoJS before being stored in Firebase, ensuring ultimate privacy.
 
 ---
 
